@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
 <meta name="theme-color" content="#1E3A5F">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>CA Training Portal</title>
 <!-- Firebase Compat SDK with reliable CDN fallbacks -->
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
@@ -313,172 +316,7 @@ const SafeStorage = {
   }
 };
 
-// ─── DB ────────────────────────────────────────────
-const ROOT='/ca_train';
-const FB_URL='https://kss-taining-default-rtdb.firebaseio.com';
-
-async function withTimeout(promise, ms=6000){
-  return Promise.race([
-    promise,
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))
-  ]);
-}
-
-// Universal HTTP request that works on ANY browser (Chrome, Safari, Firefox, Edge, Samsung, UC, Opera)
-function httpReq(method, url, data=null, timeoutMs=6000){
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-    const timer = setTimeout(() => {
-      if(!resolved){ resolved = true; reject(new Error('timeout')); }
-    }, timeoutMs);
-
-    // Try modern fetch first if available
-    if(typeof fetch === 'function'){
-      const opts = { method: method, headers: { 'Content-Type': 'application/json' } };
-      if(data && method !== 'GET') opts.body = JSON.stringify(data);
-      fetch(url, opts).then(async res => {
-        if(!resolved){
-          resolved = true;
-          clearTimeout(timer);
-          try {
-            const json = await res.json();
-            resolve({ ok: res.ok, status: res.status, json });
-          } catch(e) {
-            resolve({ ok: res.ok, status: res.status, json: null });
-          }
-        }
-      }).catch(err => {
-        // If fetch fails (CORS, old browser engine, extension blocker), fallback to XMLHttpRequest
-        tryXHR();
-      });
-      return;
-    }
-
-    tryXHR();
-
-    function tryXHR(){
-      try {
-        const xhr = new XMLHttpRequest();
-        xhr.open(method, url, true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.timeout = timeoutMs;
-        xhr.onload = function(){
-          if(!resolved){
-            resolved = true;
-            clearTimeout(timer);
-            try {
-              resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: JSON.parse(xhr.responseText) });
-            } catch(e) {
-              resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: null });
-            }
-          }
-        };
-        xhr.onerror = xhr.ontimeout = function(){
-          if(!resolved){ resolved = true; clearTimeout(timer); reject(new Error('network_error')); }
-        };
-        xhr.send(data ? JSON.stringify(data) : null);
-      } catch(e) {
-        if(!resolved){ resolved = true; clearTimeout(timer); reject(e); }
-      }
-    }
-  });
-}
-
-const D={
-  r:p=>db?db.ref(ROOT+'/'+p):null,
-  get:async p=>{
-    const url = `${FB_URL}${ROOT}/${p}.json?_t=${Date.now()}`;
-    try{
-      const res = await httpReq('GET', url, null, 4500);
-      if(res.ok && res.json !== undefined) return res.json;
-    }catch(e){}
-    if(db){
-      try{
-        const snap = await withTimeout(D.r(p).once('value'), 5000);
-        return snap.val();
-      }catch(err){}
-    }
-    return null;
-  },
-  set:async(p,v)=>{
-    try{
-      if(db){ await withTimeout(D.r(p).set(v), 4000); return; }
-    }catch(e){}
-    try{
-      await httpReq('PUT', `${FB_URL}${ROOT}/${p}.json`, v, 5000);
-    }catch(err){console.warn('Set error:', err);}
-  },
-  push:async(p,v)=>{
-    try{
-      if(db){
-        const r=await withTimeout(D.r(p).push(v), 4000);
-        return r.key;
-      }
-    }catch(e){}
-    try{
-      const res = await httpReq('POST', `${FB_URL}${ROOT}/${p}.json`, v, 5000);
-      if(res.json && res.json.name) return res.json.name;
-    }catch(err){}
-    return 'k_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
-  },
-  upd:async(p,v)=>{
-    try{
-      if(db){ await withTimeout(D.r(p).update(v), 4000); return; }
-    }catch(e){}
-    try{
-      await httpReq('PATCH', `${FB_URL}${ROOT}/${p}.json`, v, 5000);
-    }catch(err){console.warn('Upd error:', err);}
-  },
-  del:async p=>{
-    try{
-      if(db){ await withTimeout(D.r(p).remove(), 4000); return; }
-    }catch(e){}
-    try{
-      await httpReq('DELETE', `${FB_URL}${ROOT}/${p}.json`, null, 5000);
-    }catch(err){console.warn('Del error:', err);}
-  },
-  key:()=>{
-    try{ return db.ref().push().key; }catch{ return 'k_'+Date.now()+'_'+Math.random().toString(36).substr(2,6); }
-  }
-};
-
-// ─── UTILS ─────────────────────────────────────────
-const $=id=>document.getElementById(id);
-const now=()=>new Date().toISOString();
-const fdate=iso=>{if(!iso)return'—';try{return new Date(iso).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});}catch{return iso;}};
-const ftime=iso=>{if(!iso)return'—';try{return new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}catch{return iso;}};
-const days=iso=>iso?Math.max(0,Math.floor((Date.now()-new Date(iso))/86400000)):0;
-const toArr=o=>{if(!o)return[];return Object.entries(o).map(([id,v])=>({_k:id,...v}));};
-const toSorted=(o,f='display_order')=>toArr(o).sort((a,b)=>(a[f]||0)-(b[f]||0));
-function toast(msg,t='ok'){const d=document.createElement('div');d.className=`toast ${t}`;d.textContent=(t==='ok'?'✓ ':'✕ ')+msg;$('toast-area').appendChild(d);setTimeout(()=>d.remove(),3500);}
-function openModal(title,html){$('modal-title').textContent=title;$('modal-body').innerHTML=html;$('modal').style.display='flex';}
-function closeModal(){$('modal').style.display='none';}
-$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
-function setPage(h){$('page-content').innerHTML=h;}
-function pbar(pct,extra=''){const c=pct>=100?'p-green':'p-navy';return`<div class="pbar ${extra}"><div class="pfill ${c}" style="width:${Math.min(pct,100)}%"></div></div>`;}
-function badge(t,c='b-gray'){return`<span class="badge ${c}">${t}</span>`;}
-function av(name,bg='var(--navy)',sz=38){return`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${Math.round(sz*.38)}px;flex-shrink:0">${(name||'?')[0].toUpperCase()}</div>`;}
-function ytSrc(url){
-  if(!url) return null;
-  // Playlist
-  if(url.includes('list=')){
-    const m = url.match(/[?&]list=([^&#]+)/);
-    if(m) return `https://www.youtube.com/embed/videoseries?list=${m[1]}`;
-  }
-  // Short youtu.be
-  const shortMatch = url.match(/youtu\.be\/([^?&#]+)/);
-  if(shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
-  // Standard watch?v=
-  const vMatch = url.match(/[?&]v=([^&#]+)/);
-  if(vMatch) return `https://www.youtube.com/embed/${vMatch[1]}`;
-  // Embed format already
-  const embMatch = url.match(/youtube\.com\/embed\/([^?&#]+)/);
-  if(embMatch) return `https://www.youtube.com/embed/${embMatch[1]}`;
-  return null;
-}
-async function audit(action,desc){try{await D.push('audit',{action,description:desc,user:me?.username,created_at:now()});}catch{}}
-
-// DB computed
+// ─── DATA DEFAULTS ──────────────────────────────────
 const FALLBACK_SUBJS = [
   {_k:'s1', name:'Computer Basic', icon:'💻', description:'MS Excel, MS Word, Typing, Page Setup', display_order:1, is_active:true},
   {_k:'s2', name:'Income Tax', icon:'📊', description:'ITR filing, 26AS, AIS, PAN, tax concepts', display_order:2, is_active:true},
@@ -520,6 +358,272 @@ const FALLBACK_EMPS = [
   {_k:'emp_keyur', full_name:'Keyur Patel', employee_id:'EMP-001', designation:'Accountant', phone:'', email:'', joining_date:'2026-09-01', status:'active', username:'Keyur123'}
 ];
 
+// ─── LOCAL-FIRST ULTRA-FAST STORAGE ─────────────────
+let _localStore = null;
+
+function initDefaultStore(){
+  const ts = now();
+  const subjsObj = {};
+  FALLBACK_SUBJS.forEach(s => { subjsObj[s._k] = { ...s, created_at: ts }; });
+  
+  const vidsObj = {};
+  FALLBACK_VIDS.forEach(v => { vidsObj[v._k] = { ...v, created_at: ts }; });
+  
+  const empsObj = {};
+  FALLBACK_EMPS.forEach(e => { empsObj[e._k] = { ...e, created_at: ts }; });
+  
+  const usersObj = {
+    'admin': { username:'admin', password:'admin123', role:'admin', full_name:'Administrator', created_at:ts },
+    'keyur123': { username:'Keyur123', password:'welcome123', role:'employee', full_name:'Keyur Patel', employee_key:'emp_keyur', created_at:ts },
+    'keyur': { username:'keyur', password:'welcome123', role:'employee', full_name:'Keyur Patel', employee_key:'emp_keyur', created_at:ts }
+  };
+  
+  const asgnObj = {
+    'emp_keyur': { 's1':true, 's2':true, 's3':true, 's4':true, 's5':true, 's6':true }
+  };
+  
+  return {
+    subjects: subjsObj,
+    videos: vidsObj,
+    employees: empsObj,
+    users: usersObj,
+    assignments: asgnObj,
+    progress: {},
+    audit: {}
+  };
+}
+
+function getStore(){
+  if(!_localStore){
+    try {
+      const raw = SafeStorage.get('ca_local_db_v2');
+      _localStore = raw ? JSON.parse(raw) : null;
+    } catch(e) { _localStore = null; }
+    if(!_localStore || typeof _localStore !== 'object'){
+      _localStore = initDefaultStore();
+      persistStore();
+    }
+  }
+  return _localStore;
+}
+
+function persistStore(){
+  try { SafeStorage.set('ca_local_db_v2', JSON.stringify(_localStore)); } catch(e){}
+}
+
+function getPathVal(obj, path){
+  if(!obj) return undefined;
+  const parts = path.split('/').filter(Boolean);
+  let cur = obj;
+  for(const part of parts){
+    if(cur && typeof cur === 'object' && part in cur){ cur = cur[part]; }
+    else { return undefined; }
+  }
+  return cur;
+}
+
+function setPathVal(obj, path, val){
+  const parts = path.split('/').filter(Boolean);
+  let cur = obj;
+  for(let i = 0; i < parts.length - 1; i++){
+    const p = parts[i];
+    if(!cur[p] || typeof cur[p] !== 'object'){ cur[p] = {}; }
+    cur = cur[p];
+  }
+  cur[parts[parts.length - 1]] = val;
+}
+
+function delPathVal(obj, path){
+  const parts = path.split('/').filter(Boolean);
+  let cur = obj;
+  for(let i = 0; i < parts.length - 1; i++){
+    const p = parts[i];
+    if(!cur[p] || typeof cur[p] !== 'object') return;
+    cur = cur[p];
+  }
+  if(cur && typeof cur === 'object'){ delete cur[parts[parts.length - 1]]; }
+}
+
+// Universal HTTP request that works on ANY browser (Chrome, Safari, Firefox, Edge, Samsung, UC, Opera)
+function httpReq(method, url, data=null, timeoutMs=3000){
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if(!done){ done = true; resolve({ ok: false, status: 408, json: null }); }
+    }, timeoutMs);
+
+    if(typeof fetch === 'function'){
+      const opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+      if(data && method !== 'GET') opts.body = JSON.stringify(data);
+      fetch(url, opts).then(async res => {
+        if(!done){
+          done = true;
+          clearTimeout(timer);
+          try {
+            const json = await res.json();
+            resolve({ ok: res.ok, status: res.status, json });
+          } catch(e) {
+            resolve({ ok: res.ok, status: res.status, json: null });
+          }
+        }
+      }).catch(() => {
+        tryXHR();
+      });
+      return;
+    }
+
+    tryXHR();
+
+    function tryXHR(){
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.timeout = timeoutMs;
+        xhr.onload = function(){
+          if(!done){
+            done = true;
+            clearTimeout(timer);
+            try {
+              resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: JSON.parse(xhr.responseText) });
+            } catch(e) {
+              resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: null });
+            }
+          }
+        };
+        xhr.onerror = xhr.ontimeout = function(){
+          if(!done){ done = true; clearTimeout(timer); resolve({ ok: false, status: 0, json: null }); }
+        };
+        xhr.send(data ? JSON.stringify(data) : null);
+      } catch(e) {
+        if(!done){ done = true; clearTimeout(timer); resolve({ ok: false, status: 0, json: null }); }
+      }
+    }
+  });
+}
+
+// ─── HIGH PERFORMANCE DB INTERFACE ───────────────────
+const ROOT='/ca_train';
+const FB_URL='https://kss-taining-default-rtdb.firebaseio.com';
+
+const D={
+  r: p => db ? db.ref(ROOT + '/' + p) : null,
+  
+  get: async p => {
+    const s = getStore();
+    const localVal = getPathVal(s, p);
+    
+    // Background cloud fetch (non-blocking, keeps local state fresh)
+    httpReq('GET', `${FB_URL}${ROOT}/${p}.json?_t=${Date.now()}`, null, 1500).then(res => {
+      if(res.ok && res.json !== null && res.json !== undefined){
+        setPathVal(getStore(), p, res.json);
+        persistStore();
+      }
+    }).catch(()=>{});
+    
+    if(localVal !== undefined && localVal !== null) return localVal;
+    return null;
+  },
+  
+  set: async (p, v) => {
+    // 1. Instant local persistence (0 ms latency)
+    const s = getStore();
+    setPathVal(s, p, v);
+    persistStore();
+    
+    // 2. Non-blocking Firebase sync in background
+    if(db){ try{ D.r(p).set(v).catch(()=>{}); }catch(e){} }
+    httpReq('PUT', `${FB_URL}${ROOT}/${p}.json`, v, 2000).catch(()=>{});
+    return true;
+  },
+  
+  push: async (p, v) => {
+    const key = 'k_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    const item = { ...v, _k: key };
+    
+    // 1. Instant local persistence
+    const s = getStore();
+    let parent = getPathVal(s, p) || {};
+    if(typeof parent !== 'object' || Array.isArray(parent)) parent = {};
+    parent[key] = item;
+    setPathVal(s, p, parent);
+    persistStore();
+    
+    // 2. Non-blocking Firebase sync
+    if(db){ try{ D.r(p + '/' + key).set(item).catch(()=>{}); }catch(e){} }
+    httpReq('PUT', `${FB_URL}${ROOT}/${p}/${key}.json`, item, 2000).catch(()=>{});
+    return key;
+  },
+  
+  upd: async (p, v) => {
+    const s = getStore();
+    const existing = getPathVal(s, p) || {};
+    const merged = (typeof existing === 'object' && !Array.isArray(existing)) ? { ...existing, ...v } : v;
+    setPathVal(s, p, merged);
+    persistStore();
+    
+    if(db){ try{ D.r(p).update(v).catch(()=>{}); }catch(e){} }
+    httpReq('PATCH', `${FB_URL}${ROOT}/${p}.json`, v, 2000).catch(()=>{});
+    return true;
+  },
+  
+  del: async p => {
+    const s = getStore();
+    delPathVal(s, p);
+    persistStore();
+    
+    if(db){ try{ D.r(p).remove().catch(()=>{}); }catch(e){} }
+    httpReq('DELETE', `${FB_URL}${ROOT}/${p}.json`, null, 2000).catch(()=>{});
+    return true;
+  },
+  
+  key: () => 'k_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)
+};
+
+async function withTimeout(promise, ms=2000){
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))
+  ]);
+}
+
+// ─── UTILS ─────────────────────────────────────────
+const $=id=>document.getElementById(id);
+const now=()=>new Date().toISOString();
+const fdate=iso=>{if(!iso)return'—';try{return new Date(iso).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});}catch{return iso;}};
+const ftime=iso=>{if(!iso)return'—';try{return new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}catch{return iso;}};
+const days=iso=>iso?Math.max(0,Math.floor((Date.now()-new Date(iso))/86400000)):0;
+const toArr=o=>{if(!o)return[];return Object.entries(o).map(([id,v])=>({_k:id,...v}));};
+const toSorted=(o,f='display_order')=>toArr(o).sort((a,b)=>(a[f]||0)-(b[f]||0));
+function toast(msg,t='ok'){const d=document.createElement('div');d.className=`toast ${t}`;d.textContent=(t==='ok'?'✓ ':'✕ ')+msg;$('toast-area').appendChild(d);setTimeout(()=>d.remove(),3500);}
+function openModal(title,html){$('modal-title').textContent=title;$('modal-body').innerHTML=html;$('modal').style.display='flex';}
+function closeModal(){$('modal').style.display='none';}
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
+function setPage(h){$('page-content').innerHTML=h;}
+function pbar(pct,extra=''){const c=pct>=100?'p-green':'p-navy';return`<div class="pbar ${extra}"><div class="pfill ${c}" style="width:${Math.min(pct,100)}%"></div></div>`;}
+function badge(t,c='b-gray'){return`<span class="badge ${c}">${t}</span>`;}
+function av(name,bg='var(--navy)',sz=38){return`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${Math.round(sz*.38)}px;flex-shrink:0">${(name||'?')[0].toUpperCase()}</div>`;}
+function ytSrc(url){
+  if(!url) return null;
+  // Playlist
+  if(url.includes('list=')){
+    const m = url.match(/[?&]list=([^&#]+)/);
+    if(m) return `https://www.youtube.com/embed/videoseries?list=${m[1]}`;
+  }
+  // Short youtu.be
+  const shortMatch = url.match(/youtu\.be\/([^?&#]+)/);
+  if(shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  // Standard watch?v=
+  const vMatch = url.match(/[?&]v=([^&#]+)/);
+  if(vMatch) return `https://www.youtube.com/embed/${vMatch[1]}`;
+  // Embed format already
+  const embMatch = url.match(/youtube\.com\/embed\/([^?&#]+)/);
+  if(embMatch) return `https://www.youtube.com/embed/${embMatch[1]}`;
+  return null;
+}
+async function audit(action,desc){try{await D.push('audit',{action,description:desc,user:me?.username,created_at:now()});}catch{}}
+
+// DB computed
 const getSubjs=async()=>{
   const s = await D.get('subjects');
   const arr = toSorted(s, 'display_order');
@@ -1233,16 +1337,55 @@ async function saveEmpCred(ek){
   }
 }
 
-async function openAddEmp(){const subjs=await getSubjs();openModal('Add Employee',`<div class="frow"><div class="form-group"><label class="flabel2">Employee ID *</label><input class="finput2" id="f-eid" placeholder="EMP001"/></div><div class="form-group"><label class="flabel2">Full Name *</label><input class="finput2" id="f-name" placeholder="Full name"/></div></div><div class="frow"><div class="form-group"><label class="flabel2">Designation</label><input class="finput2" id="f-desig" placeholder="Article, Manager..."/></div><div class="form-group"><label class="flabel2">Mobile</label><input class="finput2" id="f-mob" type="tel" placeholder="Mobile number"/></div></div><div class="frow"><div class="form-group"><label class="flabel2">Joining Date</label><input class="finput2" id="f-join" type="date"/></div><div class="form-group"><label class="flabel2">Department</label><input class="finput2" id="f-dept" placeholder="Accounts, Tax..."/></div></div><div class="frow"><div class="form-group"><label class="flabel2">Username * (login ID)</label><input class="finput2" id="f-uname" placeholder="e.g. rahul" autocapitalize="none"/></div><div class="form-group"><label class="flabel2">Password *</label><input class="finput2" id="f-pass" value="welcome123"/></div></div><div class="form-group mt3"><label class="flabel2">Assign Subjects</label><div class="check-grid mt2">${subjs.map(s=>`<label class="check-item"><input type="checkbox" class="scheck" value="${s._k}" checked/>${s.icon} ${s.name}</label>`).join('')}</div></div><div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="saveEmp()">Add Employee</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>`);}
-async function saveEmp(){const eid=$('f-eid').value.trim(),name=$('f-name').value.trim(),uname=$('f-uname').value.trim().toLowerCase(),pass=$('f-pass').value.trim();if(!eid||!name||!uname||!pass){toast('Fill required fields (*)','err');return;}if(await D.get('users/'+uname)){toast('Username already exists','err');return;}const ek=await D.push('employees',{employee_id:eid,full_name:name,designation:$('f-desig').value.trim(),department:$('f-dept').value.trim(),mobile:$('f-mob').value.trim(),joining_date:$('f-join').value||null,status:'active',created_at:now()});await D.set(`users/${uname}`,{username:uname,password:pass,role:'employee',employee_key:ek,full_name:name,status:'active',created_at:now()});for(const c of document.querySelectorAll('.scheck:checked'))await D.set(`assignments/${ek}/${c.value}`,true);audit('add_employee',`Added ${name} (${uname})`);closeModal();toast(`✓ ${name} added! Login: ${uname} / ${pass}`);nav('employees');}
+async function openAddEmp(){
+  const subjs=await getSubjs();
+  openModal('Add Employee',`
+    <div class="frow"><div class="form-group"><label class="flabel2">Employee ID *</label><input class="finput2" id="f-eid" placeholder="EMP001"/></div><div class="form-group"><label class="flabel2">Full Name *</label><input class="finput2" id="f-name" placeholder="Full name"/></div></div>
+    <div class="frow"><div class="form-group"><label class="flabel2">Designation</label><input class="finput2" id="f-desig" placeholder="Article, Manager..."/></div><div class="form-group"><label class="flabel2">Mobile</label><input class="finput2" id="f-mob" type="tel" placeholder="Mobile number"/></div></div>
+    <div class="frow"><div class="form-group"><label class="flabel2">Joining Date</label><input class="finput2" id="f-join" type="date"/></div><div class="form-group"><label class="flabel2">Department</label><input class="finput2" id="f-dept" placeholder="Accounts, Tax..."/></div></div>
+    <div class="frow"><div class="form-group"><label class="flabel2">Username * (login ID)</label><input class="finput2" id="f-uname" placeholder="e.g. rahul" autocapitalize="none"/></div><div class="form-group"><label class="flabel2">Password *</label><input class="finput2" id="f-pass" value="welcome123"/></div></div>
+    <div class="form-group mt3"><label class="flabel2">Assign Subjects</label><div class="check-grid mt2">${subjs.map(s=>`<label class="check-item"><input type="checkbox" class="scheck" value="${s._k}" checked/>${s.icon} ${s.name}</label>`).join('')}</div></div>
+    <div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="saveEmp()">Add Employee</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>
+  `);
+}
+
+async function saveEmp(){
+  try {
+    const eid=$('f-eid').value.trim();
+    const name=$('f-name').value.trim();
+    const uname=$('f-uname').value.trim().toLowerCase();
+    const pass=$('f-pass').value.trim();
+    if(!eid||!name||!uname||!pass){ toast('Fill required fields (*)','err'); return; }
+    
+    const existingUser = await D.get('users/'+uname);
+    if(existingUser){ toast('Username already exists! Pick another.','err'); return; }
+    
+    const ek=await D.push('employees',{employee_id:eid,full_name:name,designation:$('f-desig').value.trim(),department:$('f-dept').value.trim(),mobile:$('f-mob').value.trim(),joining_date:$('f-join').value||null,status:'active',created_at:now()});
+    await D.set(`users/${uname}`,{username:uname,password:pass,role:'employee',employee_key:ek,full_name:name,status:'active',created_at:now()});
+    const checks = Array.from(document.querySelectorAll('.scheck:checked'));
+    await Promise.all(checks.map(c => D.set(`assignments/${ek}/${c.value}`, true)));
+    
+    audit('add_employee',`Added ${name} (${uname})`);
+    closeModal();
+    toast(`✓ ${name} added! Login: ${uname} / ${pass}`);
+    nav('employees');
+  } catch(err) {
+    console.error('Save employee error:', err);
+    toast('Save failed: ' + err.message, 'err');
+  }
+}
 
 async function openEditEmp(k){
-  const e=await D.get(`employees/${k}`),subjs=await getSubjs(),ak=await asgn(k);
-  const allUsers=await D.get('users')||{};
-  let curU='', curP='';
-  for(const[un,u] of Object.entries(allUsers)){
-    if(u.employee_key===k){ curU=un; curP=u.password||''; break; }
+  const emps = await getEmps();
+  const e = (await D.get(`employees/${k}`)) || emps.find(x => x._k === k) || {};
+  const subjs = await getSubjs();
+  const ak = await asgn(k);
+  const allUsers = await D.get('users') || {};
+  let curU = '', curP = '';
+  for(const [un, u] of Object.entries(allUsers)){
+    if(u && u.employee_key === k){ curU = un; curP = u.password || ''; break; }
   }
+  
   openModal('Edit Employee',`
     <div class="frow">
       <div class="form-group"><label class="flabel2">Full Name *</label><input class="finput2" id="f-name" value="${e.full_name||''}"/></div>
@@ -1269,35 +1412,44 @@ async function openEditEmp(k){
 }
 
 async function updEmp(k){
-  const newName=$('f-name').value.trim();
-  const origU=$('f-edit-orig-uname').value.trim().toLowerCase();
-  const newU=$('f-edit-uname').value.trim().toLowerCase();
-  const newP=$('f-edit-pass').value.trim();
+  try {
+    const newName=$('f-name').value.trim();
+    if(!newName){ toast('Name is required','err'); return; }
+    const desig=$('f-desig')?$('f-desig').value.trim():'';
+    const mob=$('f-mob')?$('f-mob').value.trim():'';
+    const joinDate=$('f-join')?$('f-join').value||null:null;
+    const origU=$('f-edit-orig-uname')?$('f-edit-orig-uname').value.trim().toLowerCase():'';
+    const newU=$('f-edit-uname')?$('f-edit-uname').value.trim().toLowerCase():'';
+    const newP=$('f-edit-pass')?$('f-edit-pass').value.trim():'';
 
-  await D.upd(`employees/${k}`,{full_name:newName,designation:$('f-desig').value.trim(),mobile:$('f-mob').value.trim(),joining_date:$('f-join').value||null});
-  await D.del(`assignments/${k}`);
-  for(const c of document.querySelectorAll('.scheck:checked'))await D.set(`assignments/${k}/${c.value}`,true);
+    await D.upd(`employees/${k}`,{full_name:newName,designation:desig,mobile:mob,joining_date:joinDate});
+    await D.del(`assignments/${k}`);
+    const checks = Array.from(document.querySelectorAll('.scheck:checked'));
+    await Promise.all(checks.map(c => D.set(`assignments/${k}/${c.value}`, true)));
 
-  // Update user credentials if provided
-  if(newU && newP){
-    if(newU!==origU){
-      const exists=await D.get('users/'+newU);
-      if(exists){ toast('That username is already taken! Employee info saved without username change.','err'); }
-      else {
-        let uData={username:newU,password:newP,role:'employee',employee_key:k,full_name:newName,status:'active',created_at:now()};
-        if(origU){
-          const oldData=await D.get('users/'+origU);
-          if(oldData) uData={...oldData,username:newU,password:newP,full_name:newName};
-          await D.del('users/'+origU);
+    if(newU && newP){
+      if(newU!==origU){
+        const exists=await D.get('users/'+newU);
+        if(exists && exists.employee_key !== k){
+          toast('That username is already taken! Info saved without username change.','err');
+        } else {
+          let uData={username:newU,password:newP,role:'employee',employee_key:k,full_name:newName,status:'active',created_at:now()};
+          if(origU && origU !== newU){
+            await D.del('users/'+origU);
+          }
+          await D.set('users/'+newU,uData);
         }
-        await D.set('users/'+newU,uData);
+      } else if(origU){
+        await D.upd('users/'+origU,{password:newP,full_name:newName});
       }
-    }else if(origU){
-      await D.upd('users/'+origU,{password:newP,full_name:newName});
     }
+    closeModal();
+    toast('✓ Employee updated successfully!');
+    nav('employees');
+  } catch(err) {
+    console.error('Update error:', err);
+    toast('Update failed: ' + err.message, 'err');
   }
-
-  closeModal();toast('Updated successfully!');nav('employees');
 }
 async function deactivateEmp(k,name){if(!confirm(`Deactivate ${name}?`))return;await D.upd(`employees/${k}`,{status:'inactive'});const users=await D.get('users')||{};for(const[un,u] of Object.entries(users))if(u.employee_key===k){await D.upd(`users/${un}`,{status:'inactive'});break;}toast('Deactivated');nav('employees');}
 
