@@ -505,35 +505,79 @@ function httpReq(method, url, data=null, timeoutMs=3000){
 // ─── HIGH PERFORMANCE DB INTERFACE ───────────────────
 const ROOT='/ca_train';
 const FB_URL='https://kss-taining-default-rtdb.firebaseio.com';
+let isCloudLocked = false;
+
+async function checkCloudHealth(){
+  try {
+    const res = await httpReq('GET', `${FB_URL}${ROOT}.json?shallow=true`, null, 2500);
+    if(res.status === 401 || (res.json && res.json.error)){
+      isCloudLocked = true;
+      return false;
+    }
+    isCloudLocked = false;
+    return true;
+  } catch(e){
+    return false;
+  }
+}
+
+async function syncAllToCloud(showToast=false){
+  const s = getStore();
+  if(!s) return false;
+  try {
+    const res = await httpReq('PUT', `${FB_URL}${ROOT}.json`, s, 6000);
+    if(res.ok && (!res.json || !res.json.error)){
+      isCloudLocked = false;
+      if(showToast) toast('☁️ Cloud Database Synced! All devices can see updates.');
+      return true;
+    } else if(res.status === 401 || (res.json && res.json.error)){
+      isCloudLocked = true;
+      if(showToast) toast('⚠️ Cloud Locked: Update Firebase Rules to ".read": true, ".write": true', 'err');
+      return false;
+    }
+  } catch(e){}
+  return false;
+}
 
 const D={
   r: p => db ? db.ref(ROOT + '/' + p) : null,
   
-  get: async p => {
+  get: async (p, forceFresh=false) => {
     const s = getStore();
     const localVal = getPathVal(s, p);
     
-    // Background cloud fetch (non-blocking, keeps local state fresh)
-    httpReq('GET', `${FB_URL}${ROOT}/${p}.json?_t=${Date.now()}`, null, 1500).then(res => {
-      if(res.ok && res.json !== null && res.json !== undefined){
-        setPathVal(getStore(), p, res.json);
-        persistStore();
-      }
-    }).catch(()=>{});
+    // If found in local store and not forcing fresh, return instantly
+    if(localVal !== undefined && localVal !== null && !forceFresh){
+      // Background cloud refresh
+      httpReq('GET', `${FB_URL}${ROOT}/${p}.json?_t=${Date.now()}`, null, 2000).then(res => {
+        if(res.ok && res.json !== null && res.json !== undefined && !res.json.error){
+          setPathVal(getStore(), p, res.json);
+          persistStore();
+        }
+      }).catch(()=>{});
+      return localVal;
+    }
     
-    if(localVal !== undefined && localVal !== null) return localVal;
-    return null;
+    // Otherwise fetch fresh from cloud (crucial for phones logging in!)
+    try {
+      const res = await httpReq('GET', `${FB_URL}${ROOT}/${p}.json?_t=${Date.now()}`, null, 3000);
+      if(res.ok && res.json !== null && res.json !== undefined && !res.json.error){
+        setPathVal(s, p, res.json);
+        persistStore();
+        return res.json;
+      }
+    } catch(e){}
+    
+    return localVal ?? null;
   },
   
   set: async (p, v) => {
-    // 1. Instant local persistence (0 ms latency)
     const s = getStore();
     setPathVal(s, p, v);
     persistStore();
     
-    // 2. Non-blocking Firebase sync in background
     if(db){ try{ D.r(p).set(v).catch(()=>{}); }catch(e){} }
-    httpReq('PUT', `${FB_URL}${ROOT}/${p}.json`, v, 2000).catch(()=>{});
+    httpReq('PUT', `${FB_URL}${ROOT}/${p}.json`, v, 2500).catch(()=>{});
     return true;
   },
   
@@ -541,7 +585,6 @@ const D={
     const key = 'k_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
     const item = { ...v, _k: key };
     
-    // 1. Instant local persistence
     const s = getStore();
     let parent = getPathVal(s, p) || {};
     if(typeof parent !== 'object' || Array.isArray(parent)) parent = {};
@@ -549,9 +592,8 @@ const D={
     setPathVal(s, p, parent);
     persistStore();
     
-    // 2. Non-blocking Firebase sync
     if(db){ try{ D.r(p + '/' + key).set(item).catch(()=>{}); }catch(e){} }
-    httpReq('PUT', `${FB_URL}${ROOT}/${p}/${key}.json`, item, 2000).catch(()=>{});
+    httpReq('PUT', `${FB_URL}${ROOT}/${p}/${key}.json`, item, 2500).catch(()=>{});
     return key;
   },
   
@@ -563,7 +605,7 @@ const D={
     persistStore();
     
     if(db){ try{ D.r(p).update(v).catch(()=>{}); }catch(e){} }
-    httpReq('PATCH', `${FB_URL}${ROOT}/${p}.json`, v, 2000).catch(()=>{});
+    httpReq('PATCH', `${FB_URL}${ROOT}/${p}.json`, v, 2500).catch(()=>{});
     return true;
   },
   
@@ -573,7 +615,7 @@ const D={
     persistStore();
     
     if(db){ try{ D.r(p).remove().catch(()=>{}); }catch(e){} }
-    httpReq('DELETE', `${FB_URL}${ROOT}/${p}.json`, null, 2000).catch(()=>{});
+    httpReq('DELETE', `${FB_URL}${ROOT}/${p}.json`, null, 2500).catch(()=>{});
     return true;
   },
   
@@ -733,19 +775,19 @@ async function doLogin(){
   if(!rawUname||!pass){showErr('Enter username and password');return;}
   btn.disabled=true;btn.textContent='Signing in...';
   try{
-    // Try exact key first
-    let u=await D.get('users/'+rawUname);
+    // Try exact key first with forceFresh=true so newly created employees from other devices are fetched!
+    let u=await D.get('users/'+rawUname, true);
     let matchedUsername=rawUname;
 
     // If not found, try lowercase key
     if(!u && rawUname !== uname){
-      u=await D.get('users/'+uname);
+      u=await D.get('users/'+uname, true);
       matchedUsername=uname;
     }
 
     // If still not found, search all users case-insensitively
     if(!u){
-      const allUsers=await D.get('users')||{};
+      const allUsers=await D.get('users', true)||{};
       for(const[un,ud] of Object.entries(allUsers)){
         if(un.toLowerCase()===uname || (ud.username && ud.username.toLowerCase()===uname)){
           u=ud;
@@ -1022,13 +1064,35 @@ function compBox(done,vp){
 
 // ─── ADMIN PAGES ───────────────────────────────────
 async function pgDash(){
+  await checkCloudHealth();
   const subjs=await getSubjs(),vids=(await getVids()).filter(v=>v.is_active),emps=(await getEmps()).filter(e=>e.status==='active');
   const allP=await D.get('progress')||{};
   let tot=0;const ss=[];
   for(const s of subjs){const sv=vids.filter(v=>v.subject_key===s._k);let d=0;for(const[,ep] of Object.entries(allP))for(const v of sv)if(ep[v._k]?.status==='completed')d++;tot+=d;ss.push({...s,total:sv.length,completed:d,pct:sv.length?Math.round(d/sv.length*100):0});}
   setPage(`
   <div>
-    <div class="page-title">Dashboard</div><div class="page-sub">Training overview</div>
+    <div class="flex jb fwrap gap2 mb3">
+      <div><div class="page-title">Dashboard</div><div class="page-sub">Training overview</div></div>
+      <button class="btn btn-navy btn-sm" onclick="syncAllToCloud(true).then(()=>pgDash())">☁️ Sync All Data to Cloud</button>
+    </div>
+    ${isCloudLocked ? `
+    <div class="card mb4" style="background:#FEF3C7;border:2px solid #F59E0B;padding:16px;border-radius:12px;">
+      <div style="font-weight:900;color:#92400E;font-size:15px;margin-bottom:6px">⚠️ Cloud Database is Locked (Permission Denied)</div>
+      <div style="color:#78350F;font-size:13px;line-height:1.7;margin-bottom:12px">
+        Your changes are saved on this PC, but <b>employees on other phones/laptops cannot see newly added employees</b> until you unlock Firebase Rules.
+      </div>
+      <div class="flex gap2 fwrap">
+        <a href="https://console.firebase.google.com/project/kss-taining/database/kss-taining-default-rtdb/rules" target="_blank" class="btn btn-navy btn-sm" style="display:inline-block">🔓 Open Firebase Rules to Unlock</a>
+        <button class="btn btn-gray btn-sm" onclick="syncAllToCloud(true).then(()=>pgDash())">🔄 Check & Sync Again</button>
+      </div>
+    </div>` : `
+    <div class="card mb4 flex jb fwrap gap2" style="background:#F0FDF4;border:1px solid #BBF7D0;padding:12px 16px;align-items:center;">
+      <div class="flex gap2" style="align-items:center;">
+        <span style="font-size:18px">🟢</span>
+        <span style="font-size:13px;font-weight:700;color:#166534">Cloud Database Connected & Active</span>
+      </div>
+      <button class="btn btn-gray btn-xs" onclick="syncAllToCloud(true)">☁️ Force Cloud Sync</button>
+    </div>`}
     <div class="grid g4 mb4">
       <div class="card"><div style="font-size:22px;margin-bottom:6px">👥</div><div class="fw9" style="font-size:22px">${emps.length}</div><div class="xs gray">Employees</div></div>
       <div class="card"><div style="font-size:22px;margin-bottom:6px">📚</div><div class="fw9" style="font-size:22px">${subjs.length}</div><div class="xs gray">Subjects</div></div>
@@ -1059,7 +1123,13 @@ async function pgEmps(state={}){
   }));
   setPage(`
   <div>
-    <div class="flex jb fwrap gap2 mb4"><div><div class="page-title">Employees</div><div class="page-sub">${rows.length} found</div></div><button class="btn btn-navy btn-sm" onclick="openAddEmp()">+ Add Employee</button></div>
+    <div class="flex jb fwrap gap2 mb4">
+      <div><div class="page-title">Employees</div><div class="page-sub">${rows.length} found</div></div>
+      <div class="flex gap2">
+        <button class="btn btn-gray btn-sm" onclick="syncAllToCloud(true)">☁️ Sync to Cloud</button>
+        <button class="btn btn-navy btn-sm" onclick="openAddEmp()">+ Add Employee</button>
+      </div>
+    </div>
     <div class="flex gap2 fwrap mb3"><input class="finput2 flex1" style="min-width:140px" placeholder="🔍 Search..." value="${search}" oninput="nav('employees',{f:'${filter}',s:this.value})"/><select class="fsel" style="width:auto;min-width:100px" onchange="nav('employees',{f:this.value})"><option value="active" ${filter==='active'?'selected':''}>Active</option><option value="inactive" ${filter==='inactive'?'selected':''}>Inactive</option><option value="all" ${filter==='all'?'selected':''}>All</option></select></div>
     ${rows.length===0?'<div class="card tc" style="padding:40px;color:var(--muted)">No employees found</div>':rows.map(e=>`
     <div class="card mb2">
