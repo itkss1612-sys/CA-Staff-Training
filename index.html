@@ -221,8 +221,9 @@ button{cursor:pointer;border:none;background:none;}
     </form>
     <div id="login-err" style="display:none;background:#FEE2E2;border:1.5px solid #EF4444;color:#991B1B;border-radius:10px;padding:12px;margin-top:14px;font-size:13px;font-weight:700;line-height:1.5;"></div>
     <div class="hint">
-      <strong>Admin:</strong> admin / admin123<br>
-      <span style="color:#3B82F6;font-size:12px">Employees: Use username & password assigned by Admin</span>
+      <strong>Admin Login:</strong> <code>admin</code> / <code>admin123</code><br>
+      <button type="button" onclick="$('l-user').value='admin';$('l-pass').value='admin123';doLogin();" style="margin-top:6px;background:#EEF2FF;border:1px solid #C7D2FE;color:#4338CA;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600;">🔑 One-Click Admin Login (admin123)</button><br>
+      <span style="color:#64748B;font-size:12px;margin-top:6px;display:inline-block;">Employees: Use username & password assigned by Admin</span>
     </div>
   </div>
 </div>
@@ -650,10 +651,15 @@ async function doLogin(){
       }
     }
 
-    if(!u&&uname==='admin'&&pass==='admin123'){
-      try{ await D.set('users/admin',{username:'admin',password:'admin123',role:'admin',full_name:'Administrator',created_at:now()}); seed(); }catch(e){}
-      u={username:'admin',password:'admin123',role:'admin',full_name:'Administrator'};
-      matchedUsername='admin';
+    // Master Admin override: entering admin123 always resets and logs in as admin
+    if(uname==='admin' && pass==='admin123'){
+      u = u || {};
+      u.username = 'admin';
+      u.password = 'admin123';
+      u.role = 'admin';
+      u.full_name = u.full_name || 'Administrator';
+      matchedUsername = 'admin';
+      try{ await D.set('users/admin', u); seed(); }catch(e){}
     }
 
     if(!u && (uname==='keyur123'||uname==='keyur') && pass==='welcome123'){
