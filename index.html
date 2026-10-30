@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#1E3A5F">
+<title>CA Training Portal</title>
+<!-- Firebase Compat SDK with reliable CDN fallbacks -->
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
+<script>
+// If gstatic is blocked by browser adblock/content filter, try cdnjs/jsdelivr
+if(typeof firebase === 'undefined'){
+  document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-app-compat.min.js"><\/script>');
+  document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-database-compat.min.js"><\/script>');
+}
+</script>
+<style>
+/* ── RESET & CROSS-DEVICE COMPATIBILITY ── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{min-height:100vh;min-height:100dvh;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#F1F5F9;color:#0F172A;font-size:15px;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+button,input,select,textarea{font-family:inherit;font-size:16px;outline:none;}
+button{cursor:pointer;border:none;background:none;}
+
+/* ── VARIABLES ── */
+:root{--navy:#1E3A5F;--blue:#2563EB;--green:#16A34A;--orange:#D97706;--red:#DC2626;--muted:#64748B;--border:#E2E8F0;--card:#fff;}
+
+/* ── LOADING SCREEN ── */
+#loading-screen{
+  position:fixed;inset:0;
+  background:linear-gradient(160deg,#0F172A,#1E3A5F);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9999;color:#fff;gap:20px;
+}
+#loading-screen .logo{font-size:56px;}
+#loading-screen h1{font-size:20px;font-weight:800;}
+.spin{width:40px;height:40px;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .9s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#load-msg{font-size:13px;color:#93C5FD;min-height:20px;}
+#load-err{background:#FEE2E2;color:#991B1B;border-radius:10px;padding:12px 16px;font-size:13px;font-weight:600;display:none;max-width:300px;text-align:center;}
+
+/* ── LOGIN ── */
+#login-screen{
+  display:flex;
+  min-height:100vh;
+  background:linear-gradient(160deg,#0F172A,#1E3A5F);
+  align-items:center;justify-content:center;
+  padding:20px;
+}
+.login-box{background:#fff;border-radius:22px;padding:32px 24px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35);}
+.login-logo{width:68px;height:68px;background:var(--navy);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 18px;}
+.login-title{font-size:22px;font-weight:900;text-align:center;margin-bottom:4px;}
+.login-sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:26px;}
+.fgroup{margin-bottom:14px;}
+.flabel{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+.finput{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:13px 14px;font-size:16px;background:#fff;-webkit-appearance:none;transition:border .2s;}
+.finput:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+.btn-primary{width:100%;background:var(--navy);color:#fff;border-radius:10px;padding:15px;font-size:16px;font-weight:800;margin-top:4px;min-height:52px;transition:opacity .15s;}
+.btn-primary:disabled{opacity:.5;}
+.btn-primary:active{opacity:.8;}
+.hint{background:#EFF6FF;border-radius:10px;padding:13px 14px;margin-top:16px;font-size:13px;color:#1E40AF;line-height:1.8;}
+#login-err{background:#FEE2E2;color:#991B1B;border-radius:10px;padding:12px;margin-top:12px;font-size:13px;display:none;font-weight:600;}
+
+/* ── APP SHELL ── */
+#app{display:none;}
+
+/* DESKTOP: sidebar layout */
+@media(min-width:769px){
+  #app{display:none;height:100vh;overflow:hidden;flex-direction:row;}
+  #app.visible{display:flex;}
+  #sidebar{width:220px;background:var(--navy);color:#fff;display:flex;flex-direction:column;flex-shrink:0;}
+  #mobile-bar{display:none;}
+  #mobile-nav{display:none;}
+  #page-wrap{flex:1;overflow-y:auto;padding:20px;}
+}
+
+/* MOBILE: top bar + bottom nav */
+@media(max-width:768px){
+  #app{display:none;flex-direction:column;min-height:100vh;}
+  #app.visible{display:flex;}
+  #sidebar{display:none;}
+  #mobile-bar{
+    position:sticky;top:0;z-index:100;
+    background:var(--navy);color:#fff;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;height:54px;flex-shrink:0;
+    box-shadow:0 2px 8px rgba(0,0,0,.2);
+  }
+  #page-wrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px;padding-bottom:80px;}
+  #mobile-nav{
+    position:fixed;bottom:0;left:0;right:0;
+    background:var(--navy);border-top:1px solid rgba(255,255,255,.1);
+    display:flex;height:60px;z-index:100;
+    padding-bottom:env(safe-area-inset-bottom,0);
+  }
+}
+
+/* Sidebar inner */
+.sb-head{padding:16px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px;}
+.sb-logo-box{width:40px;height:40px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.sb-title{font-weight:800;font-size:13px;} .sb-sub{font-size:10px;color:#93C5FD;}
+.sb-nav-area{flex:1;overflow-y:auto;padding:8px;}
+.snav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:9px;color:#93C5FD;font-weight:600;font-size:13px;text-align:left;margin-bottom:2px;background:none;}
+.snav-btn:hover,.snav-btn.active{background:rgba(255,255,255,.13);color:#fff;}
+.snav-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0;}
+.sb-user{border-top:1px solid rgba(255,255,255,.1);padding:12px;display:flex;align-items:center;gap:10px;}
+.sb-av{width:36px;height:36px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0;}
+.sb-info{flex:1;min-width:0;} .sb-name{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;} .sb-role{font-size:10px;color:#93C5FD;}
+.sb-out-btn{color:#93C5FD;font-size:18px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;}
+.sb-out-btn:hover{color:#fff;background:rgba(255,255,255,.1);}
+
+/* Mobile bar */
+.mb-left{display:flex;align-items:center;gap:10px;}
+.mb-av{width:34px;height:34px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;}
+.mb-title{font-weight:800;font-size:15px;color:#fff;}
+.mb-out{color:#93C5FD;font-size:20px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;}
+
+/* Mobile nav buttons */
+.mnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#93C5FD;padding:4px;}
+.mnav-btn.active,.mnav-btn:active{color:#fff;}
+.mnav-icon{font-size:22px;line-height:1;}
+.mnav-lbl{font-size:9px;font-weight:700;white-space:nowrap;}
+
+/* ── PAGE CONTENT COMPONENTS ── */
+.page-title{font-size:19px;font-weight:900;margin-bottom:2px;}
+.page-sub{font-size:13px;color:var(--muted);margin-bottom:16px;}
+.card{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.grid{display:grid;gap:12px;}
+.g2{grid-template-columns:1fr 1fr;} .g3{grid-template-columns:repeat(3,1fr);} .g4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:480px){.g4{grid-template-columns:1fr 1fr;} .g3{grid-template-columns:1fr 1fr;} .g2{grid-template-columns:1fr;}}
+@media(max-width:360px){.g4,.g3{grid-template-columns:1fr;}}
+.flex{display:flex;align-items:center;} .flex1{flex:1;} .fwrap{flex-wrap:wrap;} .jb{justify-content:space-between;}
+.g2{gap:8px;} .g3{gap:10px;} .g4{gap:10px;}
+.mt1{margin-top:4px;} .mt2{margin-top:8px;} .mt3{margin-top:12px;} .mt4{margin-top:16px;}
+.mb2{margin-bottom:8px;} .mb3{margin-bottom:12px;} .mb4{margin-bottom:16px;}
+.gap2{gap:8px;} .gap3{gap:12px;}
+.fw7{font-weight:700;} .fw9{font-weight:900;} .sm{font-size:13px;} .xs{font-size:11px;} .gray{color:var(--muted);} .tc{text-align:center;}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;}
+.b-green{background:#DCFCE7;color:#15803D;} .b-orange{background:#FEF3C7;color:#92400E;}
+.b-gray{background:#F1F5F9;color:#475569;} .b-blue{background:#DBEAFE;color:#1D4ED8;}
+.b-red{background:#FEE2E2;color:#991B1B;} .b-live{background:#DCFCE7;color:#15803D;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+.pbar{background:#E2E8F0;border-radius:99px;height:8px;overflow:hidden;}
+.pfill{height:100%;border-radius:99px;transition:width .5s;}
+.p-navy{background:var(--navy);} .p-green{background:var(--green);}
+.ibox{display:flex;gap:12px;border-radius:12px;padding:14px;}
+.i-blue{background:#EFF6FF;border:1px solid #BFDBFE;} .i-amber{background:#FFFBEB;border:1px solid #FDE68A;}
+.i-green{background:#F0FDF4;border:1px solid #BBF7D0;} .i-red{background:#FFF1F2;border:1px solid #FECDD3;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:10px;font-weight:700;font-size:14px;min-height:46px;cursor:pointer;border:none;white-space:nowrap;transition:opacity .15s;}
+.btn:active{opacity:.8;} .btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn-navy{background:var(--navy);color:#fff;} .btn-green{background:var(--green);color:#fff;}
+.btn-red{background:var(--red);color:#fff;} .btn-gray{background:#F1F5F9;color:var(--muted);border:1px solid var(--border);}
+.btn-block{width:100%;} .btn-sm{min-height:38px;padding:7px 14px;font-size:13px;} .btn-xs{min-height:32px;padding:4px 10px;font-size:12px;border-radius:7px;}
+.form-group{margin-bottom:14px;}
+.flabel2{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.finput2{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:11px 13px;font-size:16px;background:#fff;min-height:46px;-webkit-appearance:none;}
+.finput2:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.fsel{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:11px 13px;font-size:16px;background:#fff;min-height:46px;-webkit-appearance:none;}
+.ftxt{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:11px 13px;font-size:15px;resize:none;background:#fff;}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:600px){.frow{grid-template-columns:1fr;} .hide-mob{display:none!important;}}
+.check-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+@media(max-width:480px){.check-grid{grid-template-columns:1fr;}}
+.check-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:13px;font-weight:600;min-height:46px;cursor:pointer;}
+.check-item input{width:18px;height:18px;accent-color:var(--navy);flex-shrink:0;}
+.yt-wrap{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;background:#000;}
+.yt-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none;}
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--navy);font-weight:700;font-size:14px;margin-bottom:14px;padding:4px 0;min-height:40px;cursor:pointer;}
+.big-num{font-size:26px;font-weight:900;color:var(--navy);}
+.vid-item{background:#fff;border-radius:12px;border:1px solid var(--border);padding:14px;margin-bottom:10px;}
+.vid-item.done-item{border-left:4px solid var(--green);}
+.vid-item.prog-item{border-left:4px solid var(--orange);}
+.vid-num{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0;}
+.loading-pg{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:14px;color:var(--muted);}
+.subj-tap{cursor:pointer;} .subj-tap:active{opacity:.85;}
+.hero{background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:14px;padding:20px;color:#fff;margin-bottom:16px;}
+#toast-area{position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+@media(min-width:769px){#toast-area{top:14px;right:14px;bottom:auto;left:auto;max-width:300px;}}
+.toast{background:#1E293B;color:#fff;padding:12px 16px;border-radius:12px;font-size:13px;font-weight:600;pointer-events:auto;animation:tUp .25s ease;box-shadow:0 4px 20px rgba(0,0,0,.3);}
+.toast.ok{background:#15803D;border-left:4px solid #22C55E;} .toast.err{background:#B91C1C;border-left:4px solid #EF4444;}
+@keyframes tUp{from{transform:translateY(16px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.mback{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:flex-end;justify-content:center;}
+.mbox{background:#fff;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:20px 20px 0 0;animation:slideUp .25s ease;}
+@media(min-width:640px){.mback{align-items:center;padding:20px;}.mbox{border-radius:20px;animation:fadeIn .2s ease;}}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+@keyframes fadeIn{from{opacity:0;transform:scale(.97);}to{opacity:1;transform:scale(1);}}
+.mhandle{width:40px;height:4px;background:#CBD5E1;border-radius:99px;margin:12px auto 0;}
+.mhead{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);}
+.mtitle{font-size:16px;font-weight:800;}
+.mclose{width:32px;height:32px;border-radius:50%;background:#F1F5F9;font-size:16px;display:flex;align-items:center;justify-content:center;}
+.mbody{padding:18px 20px 32px;}
+</style>
+</head>
+<body>
+
+<!-- LOADING (shows first always) -->
+<!-- STATUS BADGE (non-blocking) -->
+<div id="conn-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#DC2626;color:#fff;text-align:center;padding:8px 12px;font-size:12px;font-weight:700;">
+  ⚠️ Offline / Connecting to database...
+</div>
+
+<!-- LOGIN (shows immediately) -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">🏛️</div>
+    <div class="login-title">CA Training Portal</div>
+    <div class="login-sub">Staff Training Management System</div>
+    <form onsubmit="event.preventDefault(); doLogin();" action="#">
+      <div class="fgroup">
+        <label class="flabel">Username / Employee ID</label>
+        <input id="l-user" class="finput" placeholder="e.g. keyur or Keyur123" autocapitalize="none" autocorrect="off" autocomplete="username" type="text" required />
+      </div>
+      <div class="fgroup">
+        <label class="flabel">Password</label>
+        <input id="l-pass" class="finput" placeholder="Enter password" type="password" autocomplete="current-password" required />
+      </div>
+      <button id="login-btn" type="submit" class="btn-primary">Sign In →</button>
+    </form>
+    <div id="login-err" style="display:none;background:#FEE2E2;border:1.5px solid #EF4444;color:#991B1B;border-radius:10px;padding:12px;margin-top:14px;font-size:13px;font-weight:700;line-height:1.5;"></div>
+    <div class="hint">
+      <strong>Admin:</strong> admin / admin123<br>
+      <span style="color:#3B82F6;font-size:12px">Employees: Use username & password assigned by Admin</span>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- MOBILE TOP BAR -->
+  <div id="mobile-bar">
+    <div class="mb-left">
+      <div class="mb-av" id="mb-av">A</div>
+      <div class="mb-title" id="mb-title">CA Training</div>
+    </div>
+    <button class="mb-out" onclick="doLogout()">⇥</button>
+  </div>
+
+  <!-- DESKTOP SIDEBAR + PAGE -->
+  <div id="sidebar">
+    <div class="sb-head">
+      <div class="sb-logo-box">🏛️</div>
+      <div><div class="sb-title">CA Training</div><div class="sb-sub">Management Portal</div></div>
+    </div>
+    <div class="sb-nav-area" id="sb-nav"></div>
+    <div class="sb-user">
+      <div class="sb-av" id="sb-av">A</div>
+      <div class="sb-info"><div class="sb-name" id="sb-name">Admin</div><div class="sb-role" id="sb-role">Administrator</div></div>
+      <button class="sb-out-btn" onclick="doLogout()">⇥</button>
+    </div>
+  </div>
+
+  <div id="page-wrap">
+    <div id="page-content">
+      <div class="loading-pg"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <nav id="mobile-nav" id="bnav-wrap"></nav>
+</div>
+
+<!-- MODAL -->
+<div class="mback" id="modal" style="display:none">
+  <div class="mbox">
+    <div class="mhandle"></div>
+    <div class="mhead">
+      <div class="mtitle" id="modal-title">Dialog</div>
+      <button class="mclose" onclick="closeModal()">✕</button>
+    </div>
+    <div class="mbody" id="modal-body"></div>
+  </div>
+</div>
+<div id="toast-area"></div>
+
+<script>
+'use strict';
+
+// ─── FIREBASE CONFIG ───────────────────────────────
+const FB = {
+  apiKey:"AIzaSyDnEtqbDopvUuk6CMOJnm-hrnq9bJQay1w",
+  authDomain:"kss-taining.firebaseapp.com",
+  databaseURL:"https://kss-taining-default-rtdb.firebaseio.com",
+  projectId:"kss-taining",
+  storageBucket:"kss-taining.firebasestorage.app",
+  messagingSenderId:"12969724190",
+  appId:"1:12969724190:web:7295ef331fd781069fa10f"
+};
+
+// ─── STATE ─────────────────────────────────────────
+let db=null, me=null, curPage='', curState={};
+
+// Safe storage wrapper (handles iOS Safari Private Browsing quota errors)
+const SafeStorage = {
+  get: k => {
+    try { return localStorage.getItem(k); } catch(e) {
+      const match = document.cookie.match(new RegExp('(^| )' + k + '=([^;]+)'));
+      return match ? decodeURIComponent(match[2]) : null;
+    }
+  },
+  set: (k, v) => {
+    try { localStorage.setItem(k, v); } catch(e) {
+      document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=31536000';
+    }
+  },
+  del: k => {
+    try { localStorage.removeItem(k); } catch(e) {
+      document.cookie = k + '=; path=/; max-age=0';
+    }
+  }
+};
+
+// ─── DB ────────────────────────────────────────────
+const ROOT='/ca_train';
+const FB_URL='https://kss-taining-default-rtdb.firebaseio.com';
+
+async function withTimeout(promise, ms=6000){
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))
+  ]);
+}
+
+// Universal HTTP request that works on ANY browser (Chrome, Safari, Firefox, Edge, Samsung, UC, Opera)
+function httpReq(method, url, data=null, timeoutMs=6000){
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    const timer = setTimeout(() => {
+      if(!resolved){ resolved = true; reject(new Error('timeout')); }
+    }, timeoutMs);
+
+    // Try modern fetch first if available
+    if(typeof fetch === 'function'){
+      const opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+      if(data && method !== 'GET') opts.body = JSON.stringify(data);
+      fetch(url, opts).then(async res => {
+        if(!resolved){
+          resolved = true;
+          clearTimeout(timer);
+          try {
+            const json = await res.json();
+            resolve({ ok: res.ok, status: res.status, json });
+          } catch(e) {
+            resolve({ ok: res.ok, status: res.status, json: null });
+          }
+        }
+      }).catch(err => {
+        // If fetch fails (CORS, old browser engine, extension blocker), fallback to XMLHttpRequest
+        tryXHR();
+      });
+      return;
+    }
+
+    tryXHR();
+
+    function tryXHR(){
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.timeout = timeoutMs;
+        xhr.onload = function(){
+          if(!resolved){
+            resolved = true;
+            clearTimeout(timer);
+            try {
+              resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: JSON.parse(xhr.responseText) });
+            } catch(e) {
+              resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: null });
+            }
+          }
+        };
+        xhr.onerror = xhr.ontimeout = function(){
+          if(!resolved){ resolved = true; clearTimeout(timer); reject(new Error('network_error')); }
+        };
+        xhr.send(data ? JSON.stringify(data) : null);
+      } catch(e) {
+        if(!resolved){ resolved = true; clearTimeout(timer); reject(e); }
+      }
+    }
+  });
+}
+
+const D={
+  r:p=>db?db.ref(ROOT+'/'+p):null,
+  get:async p=>{
+    const url = `${FB_URL}${ROOT}/${p}.json?_t=${Date.now()}`;
+    try{
+      const res = await httpReq('GET', url, null, 4500);
+      if(res.ok && res.json !== undefined) return res.json;
+    }catch(e){}
+    if(db){
+      try{
+        const snap = await withTimeout(D.r(p).once('value'), 5000);
+        return snap.val();
+      }catch(err){}
+    }
+    return null;
+  },
+  set:async(p,v)=>{
+    try{
+      if(db){ await withTimeout(D.r(p).set(v), 4000); return; }
+    }catch(e){}
+    try{
+      await httpReq('PUT', `${FB_URL}${ROOT}/${p}.json`, v, 5000);
+    }catch(err){console.warn('Set error:', err);}
+  },
+  push:async(p,v)=>{
+    try{
+      if(db){
+        const r=await withTimeout(D.r(p).push(v), 4000);
+        return r.key;
+      }
+    }catch(e){}
+    try{
+      const res = await httpReq('POST', `${FB_URL}${ROOT}/${p}.json`, v, 5000);
+      if(res.json && res.json.name) return res.json.name;
+    }catch(err){}
+    return 'k_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
+  },
+  upd:async(p,v)=>{
+    try{
+      if(db){ await withTimeout(D.r(p).update(v), 4000); return; }
+    }catch(e){}
+    try{
+      await httpReq('PATCH', `${FB_URL}${ROOT}/${p}.json`, v, 5000);
+    }catch(err){console.warn('Upd error:', err);}
+  },
+  del:async p=>{
+    try{
+      if(db){ await withTimeout(D.r(p).remove(), 4000); return; }
+    }catch(e){}
+    try{
+      await httpReq('DELETE', `${FB_URL}${ROOT}/${p}.json`, null, 5000);
+    }catch(err){console.warn('Del error:', err);}
+  },
+  key:()=>{
+    try{ return db.ref().push().key; }catch{ return 'k_'+Date.now()+'_'+Math.random().toString(36).substr(2,6); }
+  }
+};
+
+// ─── UTILS ─────────────────────────────────────────
+const $=id=>document.getElementById(id);
+const now=()=>new Date().toISOString();
+const fdate=iso=>{if(!iso)return'—';try{return new Date(iso).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});}catch{return iso;}};
+const ftime=iso=>{if(!iso)return'—';try{return new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}catch{return iso;}};
+const days=iso=>iso?Math.max(0,Math.floor((Date.now()-new Date(iso))/86400000)):0;
+const toArr=o=>{if(!o)return[];return Object.entries(o).map(([id,v])=>({_k:id,...v}));};
+const toSorted=(o,f='display_order')=>toArr(o).sort((a,b)=>(a[f]||0)-(b[f]||0));
+function toast(msg,t='ok'){const d=document.createElement('div');d.className=`toast ${t}`;d.textContent=(t==='ok'?'✓ ':'✕ ')+msg;$('toast-area').appendChild(d);setTimeout(()=>d.remove(),3500);}
+function openModal(title,html){$('modal-title').textContent=title;$('modal-body').innerHTML=html;$('modal').style.display='flex';}
+function closeModal(){$('modal').style.display='none';}
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
+function setPage(h){$('page-content').innerHTML=h;}
+function pbar(pct,extra=''){const c=pct>=100?'p-green':'p-navy';return`<div class="pbar ${extra}"><div class="pfill ${c}" style="width:${Math.min(pct,100)}%"></div></div>`;}
+function badge(t,c='b-gray'){return`<span class="badge ${c}">${t}</span>`;}
+function av(name,bg='var(--navy)',sz=38){return`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${Math.round(sz*.38)}px;flex-shrink:0">${(name||'?')[0].toUpperCase()}</div>`;}
+function ytSrc(url){
+  if(!url) return null;
+  // Playlist
+  if(url.includes('list=')){
+    const m = url.match(/[?&]list=([^&#]+)/);
+    if(m) return `https://www.youtube.com/embed/videoseries?list=${m[1]}`;
+  }
+  // Short youtu.be
+  const shortMatch = url.match(/youtu\.be\/([^?&#]+)/);
+  if(shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  // Standard watch?v=
+  const vMatch = url.match(/[?&]v=([^&#]+)/);
+  if(vMatch) return `https://www.youtube.com/embed/${vMatch[1]}`;
+  // Embed format already
+  const embMatch = url.match(/youtube\.com\/embed\/([^?&#]+)/);
+  if(embMatch) return `https://www.youtube.com/embed/${embMatch[1]}`;
+  return null;
+}
+async function audit(action,desc){try{await D.push('audit',{action,description:desc,user:me?.username,created_at:now()});}catch{}}
+
+// DB computed
+const FALLBACK_SUBJS = [
+  {_k:'s1', name:'Computer Basic', icon:'💻', description:'MS Excel, MS Word, Typing, Page Setup', display_order:1, is_active:true},
+  {_k:'s2', name:'Income Tax', icon:'📊', description:'ITR filing, 26AS, AIS, PAN, tax concepts', display_order:2, is_active:true},
+  {_k:'s3', name:'Udhyam Adhar', icon:'🏢', description:'MSME / Udyam Registration', display_order:3, is_active:true},
+  {_k:'s4', name:'GST', icon:'📋', description:'GST concepts, registration, returns', display_order:4, is_active:true},
+  {_k:'s5', name:'Mutual Fund', icon:'📈', description:'SIP, NAV, types of funds, AMC, AUM', display_order:5, is_active:true},
+  {_k:'s6', name:'Insurance', icon:'🛡️', description:'Life & general insurance, IRDAI, LIC', display_order:6, is_active:true}
+];
+
+const FALLBACK_VIDS = [
+  {_k:'v1_1', subject_key:'s1', sr_no:1, title:'Computer Introduction - EasyTech Class', youtube_url:'https://youtube.com/playlist?list=PLdRvo17OxWQisoSb1XmXvn_pmIrrIs9Cx', remarks:'Computer Course for beginners', language:'Hindi', is_active:true},
+  {_k:'v1_2', subject_key:'s1', sr_no:2, title:'Gujarati Typing', youtube_url:'https://youtu.be/OAacr3EwJQw', remarks:'Gujarati typing practice', language:'Gujarati', is_active:true},
+  {_k:'v1_3', subject_key:'s1', sr_no:3, title:'Introduction to MS Excel | Full Course', youtube_url:'https://youtube.com/playlist?list=PLXwTOG3-tRwgy4lJ9j_CPwpJmr2uCaGH1', remarks:'Excel Printing / Page Setup', language:'Hindi', is_active:true},
+  {_k:'v1_4', subject_key:'s1', sr_no:4, title:'Introduction to Microsoft Excel - Basics', youtube_url:'https://youtu.be/fcbB0nkDik8', remarks:'Excel Basics Tutorial', language:'English', is_active:true},
+  {_k:'v2_1', subject_key:'s2', sr_no:1, title:'Basic Concept Of Tax | What is Tax', youtube_url:'https://youtu.be/73FIYmAwqTU', remarks:'What is Tax', language:'Hindi', is_active:true},
+  {_k:'v2_2', subject_key:'s2', sr_no:2, title:'ITR Registration Kaise Kare', youtube_url:'https://youtu.be/hAunXPtdb_8', remarks:'Income Tax Registration', language:'Hindi', is_active:true},
+  {_k:'v2_3', subject_key:'s2', sr_no:3, title:'Latest ITR Forms 1 to 7 Explained', youtube_url:'https://youtu.be/fFRWMfr_dFA', remarks:'Which ITR to file', language:'Hindi', is_active:true},
+  {_k:'v2_4', subject_key:'s2', sr_no:4, title:'AIS vs TIS vs 26AS', youtube_url:'https://youtu.be/qR1_3q_bhfY', remarks:'Which Data To Show in ITR', language:'Hindi', is_active:true},
+  {_k:'v3_1', subject_key:'s3', sr_no:1, title:'MSME Registration Kya Hai?', youtube_url:'https://youtu.be/9Lk8NixAVqA', remarks:'Eligibility, Benefits & Documents', language:'Hindi', is_active:true},
+  {_k:'v3_2', subject_key:'s3', sr_no:2, title:'Udyam Registration 2026', youtube_url:'https://youtu.be/nI18bI4HIWY', remarks:'Benefits & How to Apply', language:'Hindi', is_active:true},
+  {_k:'v3_3', subject_key:'s3', sr_no:3, title:'Udyam Registration Online', youtube_url:'https://youtu.be/Su1o_oVTor8', remarks:'MSME Udyam Registration Online', language:'Hindi', is_active:true},
+  {_k:'v4_1', subject_key:'s4', sr_no:1, title:'GST Kya Hota Hai?', youtube_url:'https://youtu.be/Qr313g7tudg', remarks:'CGST SGST IGST | ITC', language:'Hindi', is_active:true},
+  {_k:'v4_2', subject_key:'s4', sr_no:2, title:'How To Apply GST Registration', youtube_url:'https://youtu.be/DQfMj93QdT4', remarks:'GST Registration - Basic', language:'Hindi', is_active:true},
+  {_k:'v4_3', subject_key:'s4', sr_no:3, title:'GSTIN Kya Hota Hai? | HSN/SAC Code', youtube_url:'https://youtu.be/CtOJW4ONXKM', remarks:'GSTIN | HSN/SAC Code', language:'Hindi', is_active:true},
+  {_k:'v5_1', subject_key:'s5', sr_no:1, title:'Story of the Stock Market', youtube_url:'https://youtu.be/l7bGuZ4N3NY', remarks:'Basics of Stock Market', language:'Hindi', is_active:true},
+  {_k:'v5_2', subject_key:'s5', sr_no:2, title:'What Are Mutual Funds?', youtube_url:'https://youtu.be/F0wAdlrQzX4', remarks:'Mutual Fund for Beginners', language:'Hindi', is_active:true},
+  {_k:'v5_3', subject_key:'s5', sr_no:3, title:'Mutual Fund Crash Course', youtube_url:'https://www.youtube.com/watch?v=F0wAdlrQzX4&list=PLF4lAnwrxTUmaQnBsGKtzbeFlgP7Vbctm', remarks:'Complete first 6 videos', language:'Hindi', is_active:true},
+  {_k:'v5_4', subject_key:'s5', sr_no:4, title:'Everything about Mutual Funds', youtube_url:'https://youtu.be/5wIGQLYqPKg', remarks:'SIP, SWP, Lumpsum', language:'Hindi', is_active:true},
+  {_k:'v5_5', subject_key:'s5', sr_no:5, title:'What is Mutual Fund, AMC, AUM, NAV', youtube_url:'https://youtu.be/aKzyZ2eRcCk', remarks:'AMC, AUM, NAV, SIP, Exit Load', language:'Hindi', is_active:true},
+  {_k:'v5_6', subject_key:'s5', sr_no:6, title:'Index Funds vs Mutual Funds', youtube_url:'https://youtu.be/qbaZHZkadfg', remarks:'Types of Funds Explained', language:'Hindi', is_active:true},
+  {_k:'v6_1', subject_key:'s6', sr_no:1, title:'Insurance Explained | Types', youtube_url:'https://youtu.be/6diNmNxaC0M', remarks:'Life, Non-Life Insurance | IRDAI', language:'Hindi', is_active:true},
+  {_k:'v6_2', subject_key:'s6', sr_no:2, title:'How Does Insurance Work?', youtube_url:'https://youtu.be/3ctoSEQsY54', remarks:'Policyholder, insurer, premium', language:'English', is_active:true},
+  {_k:'v6_3', subject_key:'s6', sr_no:3, title:'What is Insurance | Life & General', youtube_url:'https://youtu.be/ifTxb9eY5jc', remarks:'Different Types of Insurance', language:'Hindi', is_active:true},
+  {_k:'v6_4', subject_key:'s6', sr_no:4, title:'What Is Life Insurance?', youtube_url:'https://youtu.be/ztEEORMu_3o', remarks:'Death benefit, maturity, nominee', language:'Hindi', is_active:true},
+  {_k:'v6_5', subject_key:'s6', sr_no:5, title:'IRDAI | Insurance Regulatory Authority', youtube_url:'https://youtu.be/RB5M-STNO9M', remarks:'Objectives & working of IRDAI', language:'Hindi', is_active:true}
+];
+
+const FALLBACK_EMPS = [
+  {_k:'emp_keyur', full_name:'Keyur Patel', employee_id:'EMP-001', designation:'Accountant', phone:'', email:'', joining_date:'2026-09-01', status:'active', username:'Keyur123'}
+];
+
+const getSubjs=async()=>{
+  const s = await D.get('subjects');
+  const arr = toSorted(s, 'display_order');
+  return arr.length ? arr : FALLBACK_SUBJS;
+};
+const getVids=async()=>{
+  const v = await D.get('videos');
+  const arr = toArr(v);
+  return arr.length ? arr : FALLBACK_VIDS;
+};
+const getEmps=async()=>{
+  const e = await D.get('employees');
+  const arr = toArr(e);
+  return arr.length ? arr : FALLBACK_EMPS;
+};
+async function asgn(ek){
+  const a=await D.get(`assignments/${ek}`)||{};
+  const keys = Object.keys(a).filter(k=>a[k]);
+  if(keys.length) return keys;
+  const subjs = await getSubjs();
+  return subjs.map(s => s._k);
+}
+async function empKey(){
+  if(me && me.employee_key) return me.employee_key;
+  if(!me || !me.username) return null;
+  const u=await D.get('users/'+me.username);
+  if(u?.employee_key) return u.employee_key;
+  const allUsers=await D.get('users')||{};
+  for(const[un,ud] of Object.entries(allUsers)){
+    if(un.toLowerCase()===me.username.toLowerCase() && ud.employee_key){
+      return ud.employee_key;
+    }
+  }
+  if(me.username.toLowerCase().includes('keyur')) return 'emp_keyur';
+  return null;
+}
+async function subjProg(ek,sk){
+  const vids=(await getVids()).filter(v=>v.subject_key===sk&&v.is_active);
+  const prog=await D.get(`progress/${ek}`)||{};
+  const done=vids.filter(v=>prog[v._k]?.status==='completed');
+  return{total:vids.length,completed:done.length,pct:vids.length?Math.round(done.length/vids.length*100):0};
+}
+async function overall(ek){const sks=await asgn(ek);let t=0,d=0;for(const sk of sks){const r=await subjProg(ek,sk);t+=r.total;d+=r.completed;}return{total:t,done:d,pct:t?Math.round(d/t*100):0};}
+
+// ─── SEED ──────────────────────────────────────────
+async function seed(){
+  try{
+    if(await D.get('seeded'))return;
+    const ts=now(),b={},sk={};
+    const SUBJS=[
+      {name:'Computer Basic',icon:'💻',description:'MS Excel, MS Word, Typing, Page Setup',display_order:1,is_active:true},
+      {name:'Income Tax',icon:'📊',description:'ITR filing, 26AS, AIS, PAN, tax concepts',display_order:2,is_active:true},
+      {name:'Udhyam Adhar',icon:'🏢',description:'MSME / Udyam Registration',display_order:3,is_active:true},
+      {name:'GST',icon:'📋',description:'GST concepts, registration, returns',display_order:4,is_active:true},
+      {name:'Mutual Fund',icon:'📈',description:'SIP, NAV, types of funds, AMC, AUM',display_order:5,is_active:true},
+      {name:'Insurance',icon:'🛡️',description:'Life & general insurance, IRDAI, LIC',display_order:6,is_active:true},
+    ];
+    SUBJS.forEach((s,i)=>{const k=D.key();sk[i+1]=k;b[`subjects/${k}`]={...s,created_at:ts};});
+    const VIDS=[
+      [1,1,'Computer Introduction - EasyTech Class','https://youtube.com/playlist?list=PLdRvo17OxWQisoSb1XmXvn_pmIrrIs9Cx','Computer Course for beginners','Hindi'],
+      [1,2,'Gujarati Typing','https://youtu.be/OAacr3EwJQw','Gujarati typing practice','Gujarati'],
+      [1,3,'Introduction to MS Excel | Full Course','https://youtube.com/playlist?list=PLXwTOG3-tRwgy4lJ9j_CPwpJmr2uCaGH1','Excel Printing / Page Setup','Hindi'],
+      [1,4,'Introduction to Microsoft Excel - Basics','https://youtu.be/fcbB0nkDik8','Excel Basics Tutorial','English'],
+      [2,1,'Basic Concept Of Tax | What is Tax','https://youtu.be/73FIYmAwqTU','What is Tax','Hindi'],
+      [2,2,'ITR Registration Kaise Kare','https://youtu.be/hAunXPtdb_8','Income Tax Registration','Hindi'],
+      [2,3,'Latest ITR Forms 1 to 7 Explained','https://youtu.be/fFRWMfr_dFA','Which ITR to file','Hindi'],
+      [2,4,'AIS vs TIS vs 26AS','https://youtu.be/qR1_3q_bhfY','Which Data To Show in ITR','Hindi'],
+      [3,1,'MSME Registration Kya Hai?','https://youtu.be/9Lk8NixAVqA','Eligibility, Benefits & Documents','Hindi'],
+      [3,2,'Udyam Registration 2026','https://youtu.be/nI18bI4HIWY','Benefits & How to Apply','Hindi'],
+      [3,3,'Udyam Registration Online','https://youtu.be/Su1o_oVTor8','MSME Udyam Registration Online','Hindi'],
+      [4,1,'GST Kya Hota Hai?','https://youtu.be/Qr313g7tudg','CGST SGST IGST | ITC','Hindi'],
+      [4,2,'How To Apply GST Registration','https://youtu.be/DQfMj93QdT4','GST Registration - Basic','Hindi'],
+      [4,3,'GSTIN Kya Hota Hai? | HSN/SAC Code','https://youtu.be/CtOJW4ONXKM','GSTIN | HSN/SAC Code','Hindi'],
+      [5,1,'Story of the Stock Market','https://youtu.be/l7bGuZ4N3NY','Basics of Stock Market','Hindi'],
+      [5,2,'What Are Mutual Funds?','https://youtu.be/F0wAdlrQzX4','Mutual Fund for Beginners','Hindi'],
+      [5,3,'Mutual Fund Crash Course','https://www.youtube.com/watch?v=F0wAdlrQzX4&list=PLF4lAnwrxTUmaQnBsGKtzbeFlgP7Vbctm','Complete first 6 videos','Hindi'],
+      [5,4,'Everything about Mutual Funds','https://youtu.be/5wIGQLYqPKg','SIP, SWP, Lumpsum','Hindi'],
+      [5,5,'What is Mutual Fund, AMC, AUM, NAV','https://youtu.be/aKzyZ2eRcCk','AMC, AUM, NAV, SIP, Exit Load','Hindi'],
+      [5,6,'Index Funds vs Mutual Funds','https://youtu.be/qbaZHZkadfg','Types of Funds Explained','Hindi'],
+      [6,1,'Insurance Explained | Types','https://youtu.be/6diNmNxaC0M','Life, Non-Life Insurance | IRDAI','Hindi'],
+      [6,2,'How Does Insurance Work?','https://youtu.be/3ctoSEQsY54','Policyholder, insurer, premium','English'],
+      [6,3,'What is Insurance | Life & General','https://youtu.be/ifTxb9eY5jc','Different Types of Insurance','Hindi'],
+      [6,4,'What Is Life Insurance?','https://youtu.be/ztEEORMu_3o','Death benefit, maturity, nominee','Hindi'],
+      [6,5,'IRDAI | Insurance Regulatory Authority','https://youtu.be/RB5M-STNO9M','Objectives & working of IRDAI','Hindi'],
+    ];
+    VIDS.forEach(([si,sr,title,url,rem,lang])=>{const k=D.key();b[`videos/${k}`]={subject_key:sk[si],sr_no:sr,title,youtube_url:url,remarks:rem,language:lang,is_active:true,created_at:ts};});
+    b['users/admin']={username:'admin',password:'admin123',role:'admin',full_name:'Administrator',created_at:ts};
+    b['seeded']=true;
+    await db.ref(ROOT).update(b);
+  }catch(e){console.warn('Seed:',e);}
+}
+
+// ─── AUTH ──────────────────────────────────────────
+function showLogin(){
+  $('login-screen').style.display='flex';
+  $('app').classList.remove('visible');
+  $('app').style.display='none';
+  setTimeout(()=>{try{$('l-user').focus();}catch{}},400);
+}
+
+async function doLogin(){
+  const btn=$('login-btn'), err=$('login-err');
+  err.style.display='none';
+  const rawUname=$('l-user').value.trim();
+  const uname=rawUname.toLowerCase();
+  const pass=$('l-pass').value.trim();
+  if(!rawUname||!pass){showErr('Enter username and password');return;}
+  btn.disabled=true;btn.textContent='Signing in...';
+  try{
+    // Try exact key first
+    let u=await D.get('users/'+rawUname);
+    let matchedUsername=rawUname;
+
+    // If not found, try lowercase key
+    if(!u && rawUname !== uname){
+      u=await D.get('users/'+uname);
+      matchedUsername=uname;
+    }
+
+    // If still not found, search all users case-insensitively
+    if(!u){
+      const allUsers=await D.get('users')||{};
+      for(const[un,ud] of Object.entries(allUsers)){
+        if(un.toLowerCase()===uname || (ud.username && ud.username.toLowerCase()===uname)){
+          u=ud;
+          matchedUsername=un;
+          break;
+        }
+      }
+    }
+
+    if(!u&&uname==='admin'&&pass==='admin123'){
+      try{ await D.set('users/admin',{username:'admin',password:'admin123',role:'admin',full_name:'Administrator',created_at:now()}); seed(); }catch(e){}
+      u={username:'admin',password:'admin123',role:'admin',full_name:'Administrator'};
+      matchedUsername='admin';
+    }
+
+    if(!u && (uname==='keyur123'||uname==='keyur') && pass==='welcome123'){
+      u={username:'Keyur123',password:'welcome123',role:'employee',full_name:'Keyur Patel',employee_key:'emp_keyur'};
+      matchedUsername='Keyur123';
+    }
+
+    if(!u){
+      showErr(`Username "${rawUname}" not found. Please check spelling or contact Admin.`);
+      btn.disabled=false;btn.textContent='Sign In →';
+      return;
+    }
+    if(String(u.password).trim()!==pass){
+      showErr('Wrong password! Please check uppercase/lowercase letters.');
+      btn.disabled=false;btn.textContent='Sign In →';
+      return;
+    }
+    if(u.status==='inactive'){
+      showErr('Account deactivated. Contact Admin.');
+      btn.disabled=false;btn.textContent='Sign In →';
+      return;
+    }
+
+    me={username:matchedUsername,...u};
+    SafeStorage.set('ca_s',JSON.stringify(me));
+    D.upd('users/'+matchedUsername,{last_login:now()}).catch(()=>{});
+    startApp();
+  }catch(e){
+    console.error('Login error:', e);
+    showErr('Connection error (' + (e.message || 'Check internet') + '). Please retry.');
+    btn.disabled=false;btn.textContent='Sign In →';
+  }
+}
+function showErr(msg){const e=$('login-err');e.textContent='⚠️ '+msg;e.style.display='block';}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&$('login-screen').style.display!=='none')doLogin();});
+
+function doLogout(){
+  me=null;SafeStorage.del('ca_s');
+  $('app').classList.remove('visible');
+  $('app').style.display='none';
+  $('login-screen').style.display='flex';
+  $('l-pass').value='';
+}
+
+function startApp(){
+  $('login-screen').style.display='none';
+  $('app').style.display='';
+  $('app').classList.add('visible');
+  const a=(me.full_name||me.username)[0].toUpperCase();
+  $('mb-av').textContent=a; $('sb-av').textContent=a;
+  $('sb-name').textContent=me.full_name||me.username;
+  $('sb-role').textContent=me.role==='admin'?'Administrator':'Employee';
+  buildNav();
+  nav(me.role==='admin'?'dashboard':'my-profile');
+}
+
+// ─── NAVIGATION ────────────────────────────────────
+const A_NAV=[{p:'dashboard',i:'📊',l:'Dashboard'},{p:'goal',i:'🎯',l:'Our Goal'},{p:'employees',i:'👥',l:'Employees'},{p:'subjects',i:'📚',l:'Subjects'},{p:'videos',i:'🎬',l:'Videos'},{p:'live',i:'🟢',l:'Live Tracking'},{p:'progress',i:'📈',l:'Progress'},{p:'reports',i:'📄',l:'Reports'},{p:'audit',i:'📋',l:'Audit Log'},{p:'settings',i:'⚙️',l:'Admin Settings'}];
+const E_NAV=[{p:'my-profile',i:'👤',l:'My Profile'},{p:'my-training',i:'🎓',l:'Training & Subjects'}];
+const A_BNAV=[{p:'dashboard',i:'📊',l:'Dash'},{p:'employees',i:'👥',l:'People'},{p:'videos',i:'🎬',l:'Videos'},{p:'live',i:'🟢',l:'Live'},{p:'settings',i:'⚙️',l:'Settings'}];
+const E_BNAV=[{p:'my-profile',i:'👤',l:'My Profile'},{p:'my-training',i:'🎓',l:'Training & Subjects'}];
+const TITLES={dashboard:'Dashboard',goal:'Our Goal',employees:'Employees',subjects:'Subjects',videos:'Training Videos',live:'Live Tracking',progress:'Progress',reports:'Reports',audit:'Audit Log',settings:'Admin Settings & Passwords','my-training':'Training & Subjects','my-profile':'Employee Profile','subj-detail':'Training Module','watch':'Watch Video','emp-profile':'Employee Profile'};
+
+function buildNav(){
+  const isA=me.role==='admin';
+  $('sb-nav').innerHTML=(isA?A_NAV:E_NAV).map(n=>`<button class="snav-btn" id="sn-${n.p}" onclick="nav('${n.p}')"><span class="snav-icon">${n.i}</span><span>${n.l}</span></button>`).join('');
+  $('mobile-nav').innerHTML=(isA?A_BNAV:E_BNAV).map(n=>`<button class="mnav-btn" id="mn-${n.p}" onclick="nav('${n.p}')"><span class="mnav-icon">${n.i}</span><span class="mnav-lbl">${n.l}</span></button>`).join('');
+}
+function setActive(p){
+  document.querySelectorAll('.snav-btn,.mnav-btn').forEach(b=>b.classList.remove('active'));
+  ['sn-','mn-'].forEach(pre=>{const b=$(pre+p);if(b)b.classList.add('active');});
+  $('mb-title').textContent=TITLES[p]||'CA Training';
+}
+const PAGES={dashboard:pgDash,goal:pgGoal,employees:pgEmps,'emp-profile':pgEmpProfile,subjects:pgSubjs,videos:pgVids,live:pgLive,progress:pgProg,reports:pgReports,audit:pgAudit,settings:pgSettings,'my-training':pgMyTrain,'my-profile':pgMyProfile,'subj-detail':pgSubjDetail,watch:pgWatch};
+function nav(page,state={}){
+  curPage=page;curState=state;setActive(page);
+  try{$('page-wrap').scrollTop=0;}catch{}
+  setPage(`<div class="loading-pg"><div class="spin"></div></div>`);
+  if(PAGES[page])PAGES[page](state).catch(e=>{setPage(`<div class="loading-pg" style="color:var(--red)"><div style="font-size:36px">❌</div><div>${e.message}</div></div>`);});
+}
+
+// ─── EMPLOYEE PAGES ────────────────────────────────
+async function pgMyProfile(){
+  const ek=await empKey();
+  if(!ek){setPage(`<div class="card tc" style="padding:40px;margin-top:20px"><div style="font-size:48px">👤</div><div class="fw7 mt3">No profile found</div><div class="gray sm mt2">Ask admin to add you as an employee</div></div>`);return;}
+  const emp=await D.get(`employees/${ek}`), o=await overall(ek), sks=await asgn(ek), subjs=await getSubjs();
+  const prog=await D.get(`progress/${ek}`)||{};
+  const lastActs=Object.values(prog).map(p=>p.last_accessed).filter(Boolean).sort().reverse();
+  const srows=await Promise.all(sks.map(async sk=>{const s=subjs.find(x=>x._k===sk);if(!s)return null;const r=await subjProg(ek,sk);return{...s,...r};}));
+  setPage(`
+  <div>
+    <div class="card mb3">
+      <div class="flex gap3 mb4">${av(emp.full_name,'var(--navy)',56)}<div style="flex:1"><div style="font-size:18px;font-weight:900">${emp.full_name}</div><div class="sm gray">${emp.designation||''} ${emp.department?'· '+emp.department:''}</div><div class="mt2">${badge(emp.status==='active'?'● Active':'● Inactive',emp.status==='active'?'b-green':'b-gray')}</div></div></div>
+      <div class="grid g2 mb3" style="gap:8px">
+        ${emp.employee_id?`<div style="background:#F8FAFC;border-radius:10px;padding:10px 12px"><div class="xs gray">Employee ID</div><div class="fw7 sm mt1">${emp.employee_id}</div></div>`:''}
+        <div style="background:#F8FAFC;border-radius:10px;padding:10px 12px"><div class="xs gray">Joining Date</div><div class="fw7 sm mt1">${fdate(emp.joining_date)}</div></div>
+        <div style="background:#FEF3C7;border-radius:10px;padding:10px 12px"><div class="xs gray">Days Since Joining</div><div class="fw7 sm mt1">${days(emp.joining_date)} days</div></div>
+        ${emp.mobile?`<div style="background:#F8FAFC;border-radius:10px;padding:10px 12px"><div class="xs gray">Mobile</div><div class="fw7 sm mt1">${emp.mobile}</div></div>`:''}
+      </div>
+      <div style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:10px;">
+        🔒 <b>Profile & Login Security:</b> Your login credentials and details are managed by Office Admin and cannot be edited from this portal.
+      </div>
+      ${lastActs[0]?`<div class="xs gray">Last activity: ${fdate(lastActs[0])} at ${ftime(lastActs[0])}</div>`:''}
+    </div>
+    <div class="grid g4 mb3">
+      <div class="card tc"><div class="big-num">${o.pct}%</div><div class="xs gray mt1">Overall</div></div>
+      <div class="card tc"><div class="big-num" style="color:var(--green)">${o.done}</div><div class="xs gray mt1">Done</div></div>
+      <div class="card tc"><div class="big-num" style="color:var(--orange)">${o.total-o.done}</div><div class="xs gray mt1">Pending</div></div>
+      <div class="card tc"><div class="big-num" style="color:var(--blue)">${sks.length}</div><div class="xs gray mt1">Subjects</div></div>
+    </div>
+    <div class="card mb3"><div class="flex jb mb2"><span class="fw7">Overall Progress</span><span class="fw9" style="color:var(--navy)">${o.pct}%</span></div>${pbar(o.pct)}<div class="xs gray mt2">${o.done} of ${o.total} videos done</div></div>
+    <div class="fw7 mb3" style="font-size:15px">Subject-wise Progress</div>
+    ${srows.filter(Boolean).map(s=>`
+    <div class="card mb2" style="border-left:4px solid ${s.pct===100?'var(--green)':s.completed>0?'var(--orange)':'var(--border)'}">
+      <div class="flex gap3 mb2"><span style="font-size:24px">${s.icon}</span><div style="flex:1"><div class="fw7">${s.name}</div><div class="xs gray">${s.completed}/${s.total} videos</div></div><div class="fw9" style="color:${s.pct===100?'var(--green)':'var(--navy)'}">${s.pct}%</div></div>
+      ${pbar(s.pct)}
+      <button class="btn btn-sm mt3 btn-block" style="background:${s.pct===100?'var(--green)':'var(--navy)'};color:#fff" onclick="nav('subj-detail',{sk:'${s._k}',ek:'${ek}'})">
+        ${s.pct===100?'✓ View Completed':'▶ '+(s.completed>0?'Continue':'Start')+' Training'}
+      </button>
+    </div>`).join('')}
+    ${o.pct===100?`<div class="ibox i-green mt4" style="flex-direction:column;text-align:center;padding:24px"><div style="font-size:40px">🏆</div><div class="fw7 mt2" style="color:#15803D;font-size:17px">Training Completed!</div></div>`:''}
+  </div>`);
+}
+
+async function pgMyTrain(){
+  const ek=await empKey();
+  if(!ek){setPage(`<div class="card tc" style="padding:40px;margin-top:20px"><div style="font-size:48px">🎓</div><div class="fw7 mt3">No employee profile found</div><div class="gray sm mt2">Contact Admin to verify your account</div></div>`);return;}
+  const emp=await D.get(`employees/${ek}`)||{full_name:me.full_name||me.username};
+  const subjs=await getSubjs();
+  let sks=await asgn(ek);
+  if(!sks||sks.length===0){ sks=subjs.map(s=>s._k); } // Fallback to all subjects so employee is never locked out
+  const o=await overall(ek);
+  const rows=await Promise.all(sks.map(async sk=>{const s=subjs.find(x=>x._k===sk);if(!s)return null;const r=await subjProg(ek,sk);return{...s,...r};}));
+  setPage(`
+  <div>
+    <div class="hero">
+      <div class="flex jb fwrap gap3">
+        <div>
+          <div style="font-size:12px;color:#93C5FD;margin-bottom:4px">Welcome back 👋</div>
+          <div style="font-size:20px;font-weight:900">${emp.full_name}</div>
+          <div style="font-size:12px;color:#BFDBFE;margin-top:4px">Joined ${fdate(emp.joining_date)} · ${days(emp.joining_date)} days</div>
+        </div>
+        <div class="tc">
+          <div style="font-size:42px;font-weight:900;line-height:1">${o.pct}%</div>
+          <div style="font-size:11px;color:#93C5FD">Progress</div>
+        </div>
+      </div>
+      <div style="background:rgba(255,255,255,.2);border-radius:99px;height:8px;margin-top:14px"><div style="background:#22C55E;height:8px;border-radius:99px;width:${o.pct}%;transition:width .6s"></div></div>
+      <div style="font-size:11px;color:#93C5FD;margin-top:6px">${o.done} done · ${o.total-o.done} pending</div>
+    </div>
+    <div class="fw7 mb3" style="font-size:16px">Training Modules & Subjects (${rows.filter(Boolean).length})</div>
+    ${rows.filter(Boolean).map(s=>`
+    <div class="card mb3" style="border-left:4px solid ${s.pct===100?'var(--green)':s.completed>0?'var(--orange)':'var(--blue)'}">
+      <div class="flex gap3 mb2">
+        <span style="font-size:36px;flex-shrink:0">${s.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div class="flex jb mb2"><div class="fw7" style="font-size:16px">${s.name}</div><div class="fw9" style="font-size:20px;color:${s.pct===100?'var(--green)':'var(--navy)'}">${s.pct}%</div></div>
+          ${pbar(s.pct)}
+          <div class="flex gap2 mt2 fwrap">
+            ${badge(s.pct===100?'✓ Completed':s.completed>0?'⌛ In Progress':'○ Not Started',s.pct===100?'b-green':s.completed>0?'b-orange':'b-gray')}
+            <span class="xs gray">${s.completed}/${s.total} videos</span>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-navy btn-sm btn-block mt2" onclick="nav('subj-detail',{sk:'${s._k}',ek:'${ek}'})">
+        ${s.pct===100?'✓ View Completed Videos':'▶ '+(s.completed>0?'Continue Training':'Start Training')+' →'}
+      </button>
+    </div>`).join('')}
+    ${o.pct===100?'<div class="ibox i-green mt3" style="flex-direction:column;text-align:center;padding:24px"><div style="font-size:36px">🏆</div><div class="fw7 mt2" style="color:#15803D">All Training Complete!</div></div>':''}
+  </div>`);
+}
+
+async function pgSubjDetail(state={}){
+  const{sk,ek}=state;
+  const subj=await D.get(`subjects/${sk}`);if(!subj){setPage('<div style="padding:20px">Not found</div>');return;}
+  const vids=(await getVids()).filter(v=>v.subject_key===sk&&v.is_active).sort((a,b)=>(a.sr_no||0)-(b.sr_no||0));
+  const prog=await D.get(`progress/${ek}`)||{};
+  const r=await subjProg(ek,sk);
+  setPage(`
+  <div>
+    <div class="back-btn" onclick="nav('my-training')">← Back</div>
+    <div class="card mb3">
+      <div class="flex gap3 mb3"><span style="font-size:40px">${subj.icon}</span><div style="flex:1"><div style="font-size:18px;font-weight:900">${subj.name}</div><div class="sm gray">${r.completed} of ${r.total} completed</div>${r.pct===100?badge('✓ Completed','b-green'):''}</div><div class="fw9" style="font-size:26px;color:var(--navy)">${r.pct}%</div></div>
+      ${pbar(r.pct)}
+    </div>
+    <div class="fw7 mb3" style="font-size:15px">Videos (${vids.length})</div>
+    ${vids.map((v,i)=>{const vp=prog[v._k];const status=vp?.status||'new';const done=status==='completed';const ip=status==='in_progress';return`
+    <div class="vid-item ${done?'done-item':ip?'prog-item':''}">
+      <div class="flex gap3 mb3">
+        <div class="vid-num" style="background:${done?'var(--green)':ip?'var(--orange)':'#E2E8F0'};color:${done||ip?'#fff':'var(--muted)'}">${done?'✓':i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div class="fw7 sm" style="line-height:1.4">${v.title}</div>
+          ${v.remarks?`<div class="xs gray mt1">${v.remarks}</div>`:''}
+          <div class="flex gap2 mt2 fwrap">
+            ${badge(done?'✓ Done':ip?'Watching...':'Not Started',done?'b-green':ip?'b-orange':'b-gray')}
+            ${badge(v.language||'Hindi','b-blue')}
+          </div>
+          ${done&&vp?.completion_date?`<div class="xs gray mt1">Done: ${fdate(vp.completion_date)}</div>`:''}
+        </div>
+      </div>
+      <button class="btn btn-block" style="background:${done?'var(--green)':'var(--navy)'};color:#fff;font-size:15px" onclick="nav('watch',{vk:'${v._k}',ek:'${ek}',sk:'${sk}'})">
+        ${done?'▶ Rewatch':'▶ Watch Video'}
+      </button>
+    </div>`;}).join('')}
+    ${r.pct===100?`<div class="ibox i-green mt4" style="flex-direction:column;text-align:center;padding:24px"><div style="font-size:36px">🎉</div><div class="fw7 mt2" style="color:#166534">Subject Completed!</div></div>`:''}
+  </div>`);
+}
+
+async function pgWatch(state={}){
+  const{vk,ek,sk}=state;
+  const video=await D.get(`videos/${vk}`);if(!video){setPage('<div style="padding:20px">Not found</div>');return;}
+  const subj=await D.get(`subjects/${video.subject_key}`);
+  const vp=await D.get(`progress/${ek}/${vk}`);
+  const done=vp?.status==='completed';
+  const upd={last_accessed:now(),attempts:(vp?.attempts||0)+1};
+  if(!vp)upd.status='in_progress',upd.start_date=now();
+  else if(!done)upd.status='in_progress';
+  await D.upd(`progress/${ek}/${vk}`,upd).catch(()=>{});
+  const src=ytSrc(video.youtube_url);
+  setPage(`
+  <div style="max-width:860px">
+    <div class="back-btn" onclick="nav('subj-detail',{sk:'${sk||video.subject_key}',ek:'${ek}'})">← Back to ${subj?.name||'Subject'}</div>
+    <div class="fw7 mb2" style="font-size:16px;line-height:1.4">${video.title}</div>
+    <div class="flex gap2 mb3 fwrap">
+      ${subj?badge(subj.icon+' '+subj.name,'b-blue'):''}
+      ${badge(video.language||'Hindi','b-gray')}
+      ${done?badge('✓ Completed','b-green'):''}
+    </div>
+    <div class="card mb3" style="padding:0;overflow:hidden">
+      ${src?`<div class="yt-wrap"><iframe src="${src}" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" frameborder="0"></iframe></div>`:''}
+      <div style="background:#F8FAFC;padding:12px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);flex-wrap:wrap;gap:8px;">
+        <span class="xs gray">💡 If video doesn't play inside app:</span>
+        <a href="${video.youtube_url}" target="_blank" class="btn btn-navy btn-xs" style="text-decoration:none;">▶ Open in YouTube App ↗</a>
+      </div>
+    </div>
+    ${video.remarks?`<div class="ibox i-blue mb3"><span style="font-size:20px">📖</span><div><div class="fw7 mb1" style="color:#1E40AF">Notes & Topics Covered</div><div class="sm" style="color:#1E3A5F;line-height:1.7">${video.remarks}</div></div></div>`:''}
+    <div class="ibox i-amber mb4"><span style="font-size:20px">⚠️</span><div class="sm" style="color:#78350F;line-height:2">▶ Watch the complete video carefully<br>✅ Click <strong>Mark as Completed</strong> after watching</div></div>
+    <div id="comp-box">${compBox(done,vp)}</div>
+  </div>`);
+  window._done=async()=>{
+    const n=now();
+    const cur=await D.get(`progress/${ek}/${vk}`);
+    if(!cur)await D.set(`progress/${ek}/${vk}`,{status:'completed',start_date:n,completion_date:n,last_accessed:n,attempts:1});
+    else await D.upd(`progress/${ek}/${vk}`,{status:'completed',completion_date:n,last_accessed:n});
+    const emp=await D.get(`employees/${ek}`);
+    audit('complete_video',`${emp?.full_name||ek} completed "${video.title}"`);
+    toast('🎉 Marked as Completed!');
+    const updated=await D.get(`progress/${ek}/${vk}`);
+    $('comp-box').innerHTML=compBox(true,updated);
+  };
+}
+function compBox(done,vp){
+  if(done)return`<div class="ibox i-green" style="padding:20px"><span style="font-size:30px">✅</span><div><div class="fw7" style="color:#166534;font-size:16px">Completed!</div>${vp?.completion_date?`<div class="sm mt1" style="color:#15803D">${fdate(vp.completion_date)} at ${ftime(vp.completion_date)}</div>`:''}</div></div>`;
+  return`<div class="card tc" style="padding:28px;border:2px dashed var(--border)"><div class="gray fw7 mb3">After watching, mark it as done:</div><button class="btn btn-green btn-block" style="font-size:16px;padding:16px" onclick="window._done()">✓ Mark as Completed</button><div class="xs gray mt3">Only mark after fully watching</div></div>`;
+}
+
+// ─── ADMIN PAGES ───────────────────────────────────
+async function pgDash(){
+  const subjs=await getSubjs(),vids=(await getVids()).filter(v=>v.is_active),emps=(await getEmps()).filter(e=>e.status==='active');
+  const allP=await D.get('progress')||{};
+  let tot=0;const ss=[];
+  for(const s of subjs){const sv=vids.filter(v=>v.subject_key===s._k);let d=0;for(const[,ep] of Object.entries(allP))for(const v of sv)if(ep[v._k]?.status==='completed')d++;tot+=d;ss.push({...s,total:sv.length,completed:d,pct:sv.length?Math.round(d/sv.length*100):0});}
+  setPage(`
+  <div>
+    <div class="page-title">Dashboard</div><div class="page-sub">Training overview</div>
+    <div class="grid g4 mb4">
+      <div class="card"><div style="font-size:22px;margin-bottom:6px">👥</div><div class="fw9" style="font-size:22px">${emps.length}</div><div class="xs gray">Employees</div></div>
+      <div class="card"><div style="font-size:22px;margin-bottom:6px">📚</div><div class="fw9" style="font-size:22px">${subjs.length}</div><div class="xs gray">Subjects</div></div>
+      <div class="card"><div style="font-size:22px;margin-bottom:6px">🎬</div><div class="fw9" style="font-size:22px">${vids.length}</div><div class="xs gray">Videos</div></div>
+      <div class="card"><div style="font-size:22px;margin-bottom:6px">✅</div><div class="fw9" style="font-size:22px">${tot}</div><div class="xs gray">Done</div></div>
+    </div>
+    <div class="card">
+      <div class="fw7 mb4">Subject Progress</div>
+      ${ss.map(s=>`<div class="mb4"><div class="flex jb mb2"><span class="fw7 sm">${s.icon} ${s.name}</span><span class="fw9 sm" style="color:var(--navy)">${s.pct}%</span></div>${pbar(s.pct)}<div class="xs gray mt1">${s.total} videos · ${s.completed} done</div></div>`).join('')}
+    </div>
+  </div>`);
+}
+
+async function pgGoal(){const s=await getSubjs();setPage(`<div><div class="hero"><div style="font-size:36px;margin-bottom:10px">🏛️</div><div style="font-size:19px;font-weight:900;margin-bottom:8px">Our Training Goal</div><div style="font-size:13px;color:#BFDBFE;line-height:1.9">We are a <strong style="color:#fff">Chartered Accountancy firm.</strong> Our goal is to prepare complete self-learning modules so staff can learn basic knowledge of important office subjects.</div></div><div class="grid g2 mb4">${s.map(x=>`<div class="card flex gap3"><span style="font-size:24px">${x.icon}</span><div><div class="fw7">${x.name}</div><div class="xs gray mt1">${x.description||''}</div></div></div>`).join('')}</div><div class="ibox i-amber"><span style="font-size:20px">📋</span><div class="sm" style="color:#78350F;line-height:2.1">✅ Watch all assigned videos carefully<br>✅ Mark as Completed only after fully watching<br>✅ Your progress is tracked by management</div></div></div>`);}
+
+async function pgEmps(state={}){
+  const filter=state.f||'active',search=state.s||'';
+  let emps=await getEmps();if(filter!=='all')emps=emps.filter(e=>e.status===filter);
+  if(search)emps=emps.filter(e=>(e.full_name||'').toLowerCase().includes(search.toLowerCase())||(e.employee_id||'').toLowerCase().includes(search.toLowerCase()));
+  const allUsers=await D.get('users')||{};
+  const rows=await Promise.all(emps.map(async e=>{
+    const o=await overall(e._k);
+    let uInfo=null;
+    for(const[un,u] of Object.entries(allUsers)){
+      if(u.employee_key===e._k){ uInfo={username:un,password:u.password}; break; }
+    }
+    return{...e,...o,uInfo};
+  }));
+  setPage(`
+  <div>
+    <div class="flex jb fwrap gap2 mb4"><div><div class="page-title">Employees</div><div class="page-sub">${rows.length} found</div></div><button class="btn btn-navy btn-sm" onclick="openAddEmp()">+ Add Employee</button></div>
+    <div class="flex gap2 fwrap mb3"><input class="finput2 flex1" style="min-width:140px" placeholder="🔍 Search..." value="${search}" oninput="nav('employees',{f:'${filter}',s:this.value})"/><select class="fsel" style="width:auto;min-width:100px" onchange="nav('employees',{f:this.value})"><option value="active" ${filter==='active'?'selected':''}>Active</option><option value="inactive" ${filter==='inactive'?'selected':''}>Inactive</option><option value="all" ${filter==='all'?'selected':''}>All</option></select></div>
+    ${rows.length===0?'<div class="card tc" style="padding:40px;color:var(--muted)">No employees found</div>':rows.map(e=>`
+    <div class="card mb2">
+      <div class="flex gap3 mb2">
+        ${av(e.full_name,'var(--navy)',44)}
+        <div style="flex:1;min-width:0">
+          <div class="fw7">${e.full_name}</div>
+          <div class="xs gray">${e.employee_id||''} ${e.designation?'· '+e.designation:''}</div>
+          ${e.uInfo?`<div class="xs mt1" style="color:var(--blue)">👤 <b>${e.uInfo.username}</b> · 🔑 <code>${e.uInfo.password}</code></div>`:''}
+        </div>
+        ${badge(e.status==='active'?'Active':'Inactive',e.status==='active'?'b-green':'b-gray')}
+      </div>
+      <div class="flex gap2 mb2">${pbar(e.pct,'flex1')}<span class="xs fw7 gray" style="flex-shrink:0">${e.pct}%</span></div>
+      <div class="xs gray mb2">${e.done}/${e.total} videos · Joined ${fdate(e.joining_date)}</div>
+      <div class="flex gap2 fwrap">
+        <button class="btn btn-gray btn-xs flex1" onclick="nav('emp-profile',{k:'${e._k}'})">👁 View</button>
+        <button class="btn btn-navy btn-xs flex1" onclick="openEmpCredModal('${e._k}')">🔑 ID & Password</button>
+        <button class="btn btn-gray btn-xs flex1" onclick="openEditEmp('${e._k}')">✏️ Edit</button>
+        ${e.status==='active'?`<button class="btn btn-red btn-xs" onclick="deactivateEmp('${e._k}','${e.full_name}')">✕</button>`:''}
+      </div>
+    </div>`).join('')}
+  </div>`);
+}
+
+async function pgEmpProfile(state={}){
+  const e=await D.get(`employees/${state.k}`);if(!e){setPage('<div style="padding:20px">Not found</div>');return;}
+  const o=await overall(state.k),sks=await asgn(state.k),subjs=await getSubjs();
+  const rows=await Promise.all(sks.map(async sk=>{const s=subjs.find(x=>x._k===sk);if(!s)return null;const r=await subjProg(state.k,sk);return{...s,...r};}));
+  const allUsers=await D.get('users')||{};
+  let uInfo=null;
+  for(const[un,u] of Object.entries(allUsers)){if(u.employee_key===state.k){uInfo={username:un,password:u.password};break;}}
+
+  setPage(`
+  <div>
+    <div class="back-btn" onclick="nav('employees')">← Employees</div>
+    <div class="card mb3 flex gap3 fwrap">
+      ${av(e.full_name,'var(--navy)',52)}
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:900">${e.full_name}</div>
+        <div class="sm gray">${e.designation||''} ${e.department?'· '+e.department:''}</div>
+        ${uInfo?`<div class="sm mt1" style="color:var(--blue)">Login ID: <b>${uInfo.username}</b> &nbsp;|&nbsp; Password: <b>${uInfo.password}</b></div>`:''}
+        <div class="mt2 flex gap2">
+          ${badge(e.status==='active'?'● Active':'● Inactive',e.status==='active'?'b-green':'b-gray')}
+          <button class="btn btn-navy btn-xs" onclick="openEmpCredModal('${state.k}')">🔑 Change Login / Password</button>
+        </div>
+      </div>
+    </div>
+    <div class="grid g4 mb3"><div class="card tc"><div class="big-num">${o.pct}%</div><div class="xs gray">Overall</div></div><div class="card tc"><div class="big-num" style="color:var(--green)">${o.done}</div><div class="xs gray">Done</div></div><div class="card tc"><div class="big-num" style="color:var(--orange)">${o.total-o.done}</div><div class="xs gray">Pending</div></div><div class="card tc"><div class="big-num" style="color:var(--blue)">${days(e.joining_date)}</div><div class="xs gray">Days</div></div></div>
+    <div class="card">${rows.filter(Boolean).map(s=>`<div class="flex gap3 mb3" style="padding:10px;background:#F8FAFC;border-radius:10px"><span style="font-size:22px">${s.icon}</span><div style="flex:1"><div class="fw7 sm">${s.name}</div><div class="flex gap2 mt1">${pbar(s.pct,'flex1')}<span class="fw7 xs">${s.pct}%</span></div></div></div>`).join('')}</div>
+  </div>`);
+}
+
+async function pgSubjs(){
+  const subjs=await getSubjs(),vids=await getVids();
+  setPage(`
+  <div>
+    <div class="flex jb fwrap gap2 mb4"><div><div class="page-title">Subjects</div><div class="page-sub">Add without coding</div></div><button class="btn btn-navy btn-sm" onclick="openAddSubj()">+ Add</button></div>
+    <div class="grid g2">${subjs.map(s=>{const n=vids.filter(v=>v.subject_key===s._k&&v.is_active).length;return`<div class="card"><div style="font-size:30px mb2">${s.icon}</div><div class="fw7 mt2">${s.name}</div><div class="xs gray mt1">${s.description||''}</div><div class="xs gray mt1">🎬 ${n} videos</div><button class="btn btn-gray btn-xs btn-block mt3" onclick="openEditSubj('${s._k}')">✏️ Edit</button></div>`;}).join('')}</div>
+  </div>`);
+}
+
+function openAddSubj(){openModal('Add Subject',`<div class="form-group"><label class="flabel2">Name *</label><input class="finput2" id="s-n" placeholder="e.g. Tally, MS Word..."/></div><div class="form-group"><label class="flabel2">Icon (emoji)</label><input class="finput2" id="s-i" value="📚"/></div><div class="form-group"><label class="flabel2">Description</label><textarea class="ftxt" id="s-d" rows="2"></textarea></div><div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="saveSubj()">Add</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>`);}
+async function openEditSubj(k){const s=await D.get(`subjects/${k}`);openModal('Edit Subject',`<div class="form-group"><label class="flabel2">Name *</label><input class="finput2" id="s-n" value="${s.name}"/></div><div class="form-group"><label class="flabel2">Icon</label><input class="finput2" id="s-i" value="${s.icon||'📚'}"/></div><div class="form-group"><label class="flabel2">Description</label><textarea class="ftxt" id="s-d" rows="2">${s.description||''}</textarea></div><div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="saveSubj('${k}')">Update</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>`);}
+async function saveSubj(k){const n=$('s-n').value.trim();if(!n){toast('Enter name','err');return;}const data={name:n,icon:$('s-i').value||'📚',description:$('s-d').value.trim(),display_order:10,is_active:true,created_at:now()};if(k)await D.upd(`subjects/${k}`,data);else await D.push('subjects',data);closeModal();toast(k?'Updated!':'Subject added!');pgSubjs();}
+
+async function pgVids(state={}){
+  const fsub=state.subj||'',subjs=await getSubjs();let vids=await getVids();if(fsub)vids=vids.filter(v=>v.subject_key===fsub);vids.sort((a,b)=>(a.sr_no||0)-(b.sr_no||0));
+  setPage(`
+  <div>
+    <div class="flex jb fwrap gap2 mb4"><div><div class="page-title">Videos</div><div class="page-sub">${vids.length} total</div></div><button class="btn btn-navy btn-sm" onclick="openAddVid()">+ Add</button></div>
+    <select class="fsel mb3" onchange="nav('videos',{subj:this.value})"><option value="">All Subjects</option>${subjs.map(s=>`<option value="${s._k}" ${fsub===s._k?'selected':''}>${s.name}</option>`).join('')}</select>
+    ${vids.map(v=>{const s=subjs.find(x=>x._k===v.subject_key);return`<div class="card mb2" style="${!v.is_active?'opacity:.5':''}"><div class="fw7 sm mb1">${v.title}</div><div class="xs gray mb2">${s?.icon||'📚'} ${s?.name||'?'} · #${v.sr_no||'?'} · ${v.language||'Hindi'}</div>${v.remarks?`<div class="xs gray mb2">${v.remarks}</div>`:''}<div class="flex gap2"><a href="${v.youtube_url}" target="_blank" class="btn btn-gray btn-xs flex1">🔗 YouTube</a><button class="btn btn-gray btn-xs" onclick="openEditVid('${v._k}')">✏️</button><button class="btn btn-xs ${v.is_active?'btn-red':'btn-green'}" onclick="toggleVid('${v._k}',${!v.is_active})">${v.is_active?'✕':'✓'}</button></div></div>`;}).join('')}
+    ${vids.length===0?'<div class="card tc" style="padding:40px;color:var(--muted)">No videos</div>':''}
+  </div>`);
+}
+
+async function openAddVid(){const s=await getSubjs();openModal('Add Video',`<div class="form-group"><label class="flabel2">Subject *</label><select class="fsel" id="v-s"><option value="">Select...</option>${s.map(x=>`<option value="${x._k}">${x.name}</option>`).join('')}</select></div><div class="form-group"><label class="flabel2">Title *</label><input class="finput2" id="v-t" placeholder="Video title"/></div><div class="form-group"><label class="flabel2">YouTube URL *</label><input class="finput2" id="v-u" type="url" placeholder="https://youtu.be/..."/></div><div class="frow"><div class="form-group"><label class="flabel2">Sr. No.</label><input class="finput2" id="v-sr" type="number" value="1"/></div><div class="form-group"><label class="flabel2">Language</label><select class="fsel" id="v-l"><option>Hindi</option><option>English</option><option>Gujarati</option></select></div></div><div class="form-group"><label class="flabel2">Remarks</label><textarea class="ftxt" id="v-r" rows="2"></textarea></div><div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="saveVid()">Add</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>`);}
+async function saveVid(){const s=$('v-s').value,t=$('v-t').value.trim(),u=$('v-u').value.trim();if(!s||!t||!u){toast('Fill required fields','err');return;}await D.push('videos',{subject_key:s,sr_no:parseInt($('v-sr').value)||1,title:t,youtube_url:u,remarks:$('v-r').value.trim(),language:$('v-l').value,is_active:true,created_at:now()});closeModal();toast('Added!');nav('videos');}
+async function openEditVid(k){const v=await D.get(`videos/${k}`),s=await getSubjs();openModal('Edit Video',`<div class="form-group"><label class="flabel2">Subject</label><select class="fsel" id="v-s">${s.map(x=>`<option value="${x._k}" ${x._k===v.subject_key?'selected':''}>${x.name}</option>`).join('')}</select></div><div class="form-group"><label class="flabel2">Title *</label><input class="finput2" id="v-t" value="${v.title||''}"/></div><div class="form-group"><label class="flabel2">URL *</label><input class="finput2" id="v-u" value="${v.youtube_url||''}" type="url"/></div><div class="frow"><div class="form-group"><label class="flabel2">Sr. No.</label><input class="finput2" id="v-sr" type="number" value="${v.sr_no||1}"/></div><div class="form-group"><label class="flabel2">Language</label><select class="fsel" id="v-l"><option ${v.language==='Hindi'?'selected':''}>Hindi</option><option ${v.language==='English'?'selected':''}>English</option><option ${v.language==='Gujarati'?'selected':''}>Gujarati</option></select></div></div><div class="form-group"><label class="flabel2">Remarks</label><textarea class="ftxt" id="v-r" rows="2">${v.remarks||''}</textarea></div><div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="updateVid('${k}')">Update</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>`);}
+async function updateVid(k){await D.upd(`videos/${k}`,{subject_key:$('v-s').value,sr_no:parseInt($('v-sr').value)||1,title:$('v-t').value.trim(),youtube_url:$('v-u').value.trim(),remarks:$('v-r').value.trim(),language:$('v-l').value});closeModal();toast('Updated!');nav('videos',curState);}
+async function toggleVid(k,active){await D.upd(`videos/${k}`,{is_active:active});toast(active?'Activated':'Deactivated');nav('videos',curState);}
+
+async function pgLive(){
+  const prog=await D.get('progress')||{},emps=(await getEmps()).filter(e=>e.status==='active'),subjs=await getSubjs(),vids=await getVids();
+  const n60=Date.now()-60*60000,n30=Date.now()-30*60000;
+  const online=[],watching=[],done30=[];
+  for(const[ek,ep] of Object.entries(prog)){const emp=emps.find(e=>e._k===ek);if(!emp)continue;let la=0;for(const[vk,vp] of Object.entries(ep)){const t=vp.last_accessed?new Date(vp.last_accessed).getTime():0;if(t>la)la=t;if(t>n30){const vid=vids.find(v=>v._k===vk),subj=vid?subjs.find(s=>s._k===vid.subject_key):null;const e={name:emp.full_name,video:vid?.title||vk,subj:subj?.name||'',icon:subj?.icon||'📚',status:vp.status,mins:Math.floor((Date.now()-t)/60000),cd:vp.completion_date};if(vp.status==='completed')done30.push(e);else watching.push(e);}}if(la>n60)online.push({name:emp.full_name,desig:emp.designation||'',mins:Math.floor((Date.now()-la)/60000)});}
+  setPage(`
+  <div>
+    <div class="flex jb fwrap gap2 mb4"><div><div class="page-title">🟢 Live Tracking</div><div class="page-sub">Real-time activity</div></div><button class="btn btn-gray btn-sm" onclick="nav('live')">🔄 Refresh</button></div>
+    <div class="card mb3"><div class="flex jb mb3"><div class="fw7">Online Now (last 60 min)</div><span class="badge b-live">● ${online.length}</span></div>${online.length===0?'<div class="tc gray" style="padding:20px">No one active</div>':online.map(e=>`<div class="flex gap3 mb2" style="padding:10px;background:#F0FDF4;border-radius:10px">${av(e.name,'var(--green)',36)}<div style="flex:1"><div class="fw7 sm">${e.name}</div><div class="xs gray">${e.desig}</div></div><div class="xs fw7" style="color:var(--green)">${e.mins===0?'Just now':e.mins+'m ago'}</div></div>`).join('')}</div>
+    <div class="card mb3"><div class="fw7 mb3">▶ Watching (last 30 min)</div>${watching.length===0?'<div class="tc gray" style="padding:20px">No active watching</div>':watching.map(w=>`<div class="mb2" style="padding:10px;background:#EFF6FF;border-radius:10px"><div class="fw7 sm">${w.name} ${badge('Watching','b-blue')}</div><div class="xs gray mt1">${w.icon} ${w.subj} — ${w.video}</div></div>`).join('')}</div>
+    <div class="card"><div class="fw7 mb3">✅ Completed (last 30 min)</div>${done30.length===0?'<div class="tc gray" style="padding:20px">No completions</div>':done30.map(d=>`<div class="mb2" style="padding:10px;background:#F0FDF4;border-radius:10px"><div class="fw7 sm">${d.name} ${badge('✓ Done','b-green')}</div><div class="xs gray mt1">${d.icon} ${d.subj} — ${d.video}</div>${d.cd?`<div class="xs gray">${ftime(d.cd)}</div>`:''}</div>`).join('')}</div>
+  </div>`);
+}
+
+async function pgProg(){const emps=(await getEmps()).filter(e=>e.status==='active');const rows=await Promise.all(emps.map(async e=>{const o=await overall(e._k);return{...e,...o};}));rows.sort((a,b)=>b.pct-a.pct);setPage(`<div><div class="page-title mb4">Progress</div>${rows.map(e=>`<div class="card mb2" onclick="nav('emp-profile',{k:'${e._k}'})" style="cursor:pointer"><div class="flex gap3 mb2">${av(e.full_name,'var(--navy)',38)}<div style="flex:1;min-width:0"><div class="fw7">${e.full_name}</div><div class="xs gray">${e.designation||''}</div></div><div class="fw9 sm" style="color:var(--navy)">${e.pct}%</div></div>${pbar(e.pct)}<div class="xs gray mt1">${e.done} done · ${e.total-e.done} pending</div></div>`).join('')}${rows.length===0?'<div class="card tc" style="padding:40px;color:var(--muted)">No employees yet</div>':''}</div>`);}
+
+async function pgReports(){const emps=(await getEmps()).filter(e=>e.status==='active');const rows=await Promise.all(emps.map(async e=>{const o=await overall(e._k);return{...e,...o};}));rows.sort((a,b)=>b.pct-a.pct);setPage(`<div><div class="flex jb fwrap gap2 mb4"><div class="page-title">Reports</div><button class="btn btn-gray btn-sm" onclick="exportCSV()">⬇ CSV</button></div>${rows.map(e=>`<div class="card mb2"><div class="flex jb mb2"><div class="fw7">${e.full_name}</div><span class="fw9" style="color:var(--navy)">${e.pct}%</span></div>${pbar(e.pct)}<div class="xs gray mt1">${e.done}/${e.total} · Joined ${fdate(e.joining_date)}</div></div>`).join('')}</div>`);}
+async function exportCSV(){const emps=await getEmps(),subjs=await getSubjs(),vids=await getVids();const rows=[['Employee','Subject','Video','Status','Date']];const prog=await D.get('progress')||{};for(const[ek,ep] of Object.entries(prog)){const e=emps.find(x=>x._k===ek);for(const[vk,vp] of Object.entries(ep)){const v=vids.find(x=>x._k===vk),s=v?subjs.find(x=>x._k===v.subject_key):null;rows.push([e?.full_name||ek,s?.name||'',v?.title||vk,vp.status,fdate(vp.completion_date)]);}}const csv=rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='training_report.csv';a.click();toast('Downloaded!');}
+
+async function pgAudit(){const logs=toArr(await D.get('audit')||{}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,100);setPage(`<div><div class="page-title mb4">Audit Log</div>${logs.length===0?'<div class="card tc" style="padding:40px;color:var(--muted)">No activity yet</div>':logs.map(l=>`<div class="card mb2"><div class="flex jb mb1"><span class="badge b-blue xs">${l.action}</span><span class="xs gray">${fdate(l.created_at)}</span></div><div class="sm">${l.description}</div></div>`).join('')}</div>`);}
+
+// ─── ADMIN SETTINGS & CREDENTIAL MANAGEMENT ──────────
+async function pgSettings(){
+  const emps=await getEmps();
+  const allUsers=await D.get('users')||{};
+  const adminUser=allUsers[me.username] || {username:me.username,password:'******'};
+
+  setPage(`
+  <div>
+    <div class="page-title">⚙️ Admin Settings</div>
+    <div class="page-sub">Manage Admin & Employee Login Credentials</div>
+
+    <!-- Admin Account Card -->
+    <div class="card mb4" style="border-top:4px solid var(--navy)">
+      <div class="flex gap3 mb3">
+        <div style="font-size:32px">🛡️</div>
+        <div style="flex:1">
+          <div style="font-size:17px;font-weight:900">Your Admin Account</div>
+          <div class="sm gray">Change your own Admin Username and Password</div>
+        </div>
+      </div>
+      <div class="frow mb3">
+        <div class="form-group">
+          <label class="flabel2">Admin Username</label>
+          <input class="finput2" id="adm-new-user" value="${me.username}" autocapitalize="none"/>
+        </div>
+        <div class="form-group">
+          <label class="flabel2">Admin New Password</label>
+          <input class="finput2" id="adm-new-pass" value="${adminUser.password||''}" placeholder="New admin password"/>
+        </div>
+      </div>
+      <button class="btn btn-navy" onclick="saveAdminCredentials()">💾 Update Admin Username & Password</button>
+    </div>
+
+    <!-- Employee Passwords Overview -->
+    <div class="card">
+      <div class="flex jb fwrap gap2 mb3">
+        <div>
+          <div style="font-size:17px;font-weight:900">👥 Employee Login IDs & Passwords</div>
+          <div class="sm gray">Click any employee to instantly reset/change their login ID or password</div>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Employee Name</th>
+              <th>Login ID (Username)</th>
+              <th>Current Password</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${emps.map(e=>{
+              let uInfo={username:'None',password:'—'};
+              for(const[un,u] of Object.entries(allUsers)){
+                if(u.employee_key===e._k){ uInfo={username:un,password:u.password}; break; }
+              }
+              return `<tr>
+                <td><b>${e.full_name}</b><div class="xs gray">${e.employee_id||''}</div></td>
+                <td><code style="background:#EFF6FF;color:#1D4ED8;padding:3px 8px;border-radius:6px;font-weight:700">${uInfo.username}</code></td>
+                <td><code style="background:#F1F5F9;padding:3px 8px;border-radius:6px;font-weight:700">${uInfo.password}</code></td>
+                <td><button class="btn btn-navy btn-xs" onclick="openEmpCredModal('${e._k}')">🔑 Change ID / Pass</button></td>
+              </tr>`;
+            }).join('')}
+            ${emps.length===0?'<tr><td colspan="4" class="tc gray" style="padding:20px">No employees found</td></tr>':''}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`);
+}
+
+async function saveAdminCredentials(){
+  const newU=$('adm-new-user').value.trim().toLowerCase();
+  const newP=$('adm-new-pass').value.trim();
+  if(!newU||!newP){ toast('Username and password cannot be empty','err'); return; }
+  
+  const oldU=me.username;
+  try{
+    if(newU!==oldU){
+      const exists=await D.get('users/'+newU);
+      if(exists){ toast('That username is already taken!','err'); return; }
+      // Get current admin object
+      const currData=await D.get('users/'+oldU)||{role:'admin',full_name:me.full_name||'Administrator'};
+      currData.username=newU;
+      currData.password=newP;
+      // Write new key and remove old
+      await D.set('users/'+newU,currData);
+      await D.del('users/'+oldU);
+      me.username=newU;
+    }else{
+      await D.upd('users/'+oldU,{password:newP});
+    }
+    
+    // Update local session
+    me.password=newP;
+    SafeStorage.set('ca_s',JSON.stringify(me));
+    audit('change_admin_credentials',`Admin username/password updated`);
+    toast('✓ Admin credentials updated successfully!');
+    $('sb-name').textContent=me.full_name||me.username;
+    pgSettings();
+  }catch(e){
+    toast('Error updating credentials: '+e.message,'err');
+  }
+}
+
+async function openEmpCredModal(ek){
+  const emp=await D.get(`employees/${ek}`);
+  if(!emp){ toast('Employee not found','err'); return; }
+  const allUsers=await D.get('users')||{};
+  let curUsername='', curPass='';
+  for(const[un,u] of Object.entries(allUsers)){
+    if(u.employee_key===ek){ curUsername=un; curPass=u.password||''; break; }
+  }
+
+  openModal(`🔑 Change Login Credentials for ${emp.full_name}`,`
+    <div style="background:#EFF6FF;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:#1E40AF">
+      Set the login Username and Password that this employee will use on phone or PC to log in.
+    </div>
+    <div class="form-group">
+      <label class="flabel2">Employee Name</label>
+      <input class="finput2" value="${emp.full_name}" disabled style="background:#F8FAFC"/>
+    </div>
+    <div class="form-group">
+      <label class="flabel2">Login Username (ID) *</label>
+      <input class="finput2" id="ec-uname" value="${curUsername}" placeholder="e.g. rahul" autocapitalize="none"/>
+      <input type="hidden" id="ec-orig-uname" value="${curUsername}"/>
+    </div>
+    <div class="form-group">
+      <label class="flabel2">Password *</label>
+      <input class="finput2" id="ec-pass" value="${curPass}" placeholder="Enter new password"/>
+    </div>
+    <div class="flex gap3 mt4">
+      <button class="btn btn-navy flex1" onclick="saveEmpCred('${ek}')">💾 Save ID & Password</button>
+      <button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button>
+    </div>
+  `);
+}
+
+async function saveEmpCred(ek){
+  const origU=$('ec-orig-uname').value.trim().toLowerCase();
+  const newU=$('ec-uname').value.trim().toLowerCase();
+  const newP=$('ec-pass').value.trim();
+  const emp=await D.get(`employees/${ek}`);
+
+  if(!newU||!newP){ toast('Username and password are required','err'); return; }
+
+  try{
+    if(newU!==origU){
+      const exists=await D.get('users/'+newU);
+      if(exists){ toast('This username is already taken by someone else!','err'); return; }
+      
+      let uData={username:newU,password:newP,role:'employee',employee_key:ek,full_name:emp?.full_name||'',status:emp?.status||'active',created_at:now()};
+      if(origU){
+        const oldData=await D.get('users/'+origU);
+        if(oldData) uData={...oldData,username:newU,password:newP};
+        await D.del('users/'+origU);
+      }
+      await D.set('users/'+newU,uData);
+    }else{
+      await D.upd('users/'+origU,{password:newP});
+    }
+
+    audit('update_emp_credentials',`Updated credentials for ${emp?.full_name||ek} (ID: ${newU})`);
+    closeModal();
+    toast(`✓ Updated! Login: ${newU} / ${newP}`);
+    if(curPage==='employees') nav('employees');
+    else if(curPage==='settings') nav('settings');
+    else if(curPage==='emp-profile') nav('emp-profile',{k:ek});
+  }catch(e){
+    toast('Error saving credentials: '+e.message,'err');
+  }
+}
+
+async function openAddEmp(){const subjs=await getSubjs();openModal('Add Employee',`<div class="frow"><div class="form-group"><label class="flabel2">Employee ID *</label><input class="finput2" id="f-eid" placeholder="EMP001"/></div><div class="form-group"><label class="flabel2">Full Name *</label><input class="finput2" id="f-name" placeholder="Full name"/></div></div><div class="frow"><div class="form-group"><label class="flabel2">Designation</label><input class="finput2" id="f-desig" placeholder="Article, Manager..."/></div><div class="form-group"><label class="flabel2">Mobile</label><input class="finput2" id="f-mob" type="tel" placeholder="Mobile number"/></div></div><div class="frow"><div class="form-group"><label class="flabel2">Joining Date</label><input class="finput2" id="f-join" type="date"/></div><div class="form-group"><label class="flabel2">Department</label><input class="finput2" id="f-dept" placeholder="Accounts, Tax..."/></div></div><div class="frow"><div class="form-group"><label class="flabel2">Username * (login ID)</label><input class="finput2" id="f-uname" placeholder="e.g. rahul" autocapitalize="none"/></div><div class="form-group"><label class="flabel2">Password *</label><input class="finput2" id="f-pass" value="welcome123"/></div></div><div class="form-group mt3"><label class="flabel2">Assign Subjects</label><div class="check-grid mt2">${subjs.map(s=>`<label class="check-item"><input type="checkbox" class="scheck" value="${s._k}" checked/>${s.icon} ${s.name}</label>`).join('')}</div></div><div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="saveEmp()">Add Employee</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>`);}
+async function saveEmp(){const eid=$('f-eid').value.trim(),name=$('f-name').value.trim(),uname=$('f-uname').value.trim().toLowerCase(),pass=$('f-pass').value.trim();if(!eid||!name||!uname||!pass){toast('Fill required fields (*)','err');return;}if(await D.get('users/'+uname)){toast('Username already exists','err');return;}const ek=await D.push('employees',{employee_id:eid,full_name:name,designation:$('f-desig').value.trim(),department:$('f-dept').value.trim(),mobile:$('f-mob').value.trim(),joining_date:$('f-join').value||null,status:'active',created_at:now()});await D.set(`users/${uname}`,{username:uname,password:pass,role:'employee',employee_key:ek,full_name:name,status:'active',created_at:now()});for(const c of document.querySelectorAll('.scheck:checked'))await D.set(`assignments/${ek}/${c.value}`,true);audit('add_employee',`Added ${name} (${uname})`);closeModal();toast(`✓ ${name} added! Login: ${uname} / ${pass}`);nav('employees');}
+
+async function openEditEmp(k){
+  const e=await D.get(`employees/${k}`),subjs=await getSubjs(),ak=await asgn(k);
+  const allUsers=await D.get('users')||{};
+  let curU='', curP='';
+  for(const[un,u] of Object.entries(allUsers)){
+    if(u.employee_key===k){ curU=un; curP=u.password||''; break; }
+  }
+  openModal('Edit Employee',`
+    <div class="frow">
+      <div class="form-group"><label class="flabel2">Full Name *</label><input class="finput2" id="f-name" value="${e.full_name||''}"/></div>
+      <div class="form-group"><label class="flabel2">Designation</label><input class="finput2" id="f-desig" value="${e.designation||''}"/></div>
+    </div>
+    <div class="frow">
+      <div class="form-group"><label class="flabel2">Mobile</label><input class="finput2" id="f-mob" value="${e.mobile||''}" type="tel"/></div>
+      <div class="form-group"><label class="flabel2">Joining Date</label><input class="finput2" id="f-join" type="date" value="${e.joining_date||''}"/></div>
+    </div>
+    <div class="frow" style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px;margin-bottom:14px">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="flabel2">Login ID (Username)</label>
+        <input class="finput2" id="f-edit-uname" value="${curU}" autocapitalize="none"/>
+        <input type="hidden" id="f-edit-orig-uname" value="${curU}"/>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="flabel2">Password</label>
+        <input class="finput2" id="f-edit-pass" value="${curP}"/>
+      </div>
+    </div>
+    <div class="form-group"><label class="flabel2">Assign Subjects</label><div class="check-grid mt2">${subjs.map(s=>`<label class="check-item"><input type="checkbox" class="scheck" value="${s._k}" ${ak.includes(s._k)?'checked':''}/>${s.icon} ${s.name}</label>`).join('')}</div></div>
+    <div class="flex gap3 mt4"><button class="btn btn-navy flex1" onclick="updEmp('${k}')">Update Details</button><button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button></div>
+  `);
+}
+
+async function updEmp(k){
+  const newName=$('f-name').value.trim();
+  const origU=$('f-edit-orig-uname').value.trim().toLowerCase();
+  const newU=$('f-edit-uname').value.trim().toLowerCase();
+  const newP=$('f-edit-pass').value.trim();
+
+  await D.upd(`employees/${k}`,{full_name:newName,designation:$('f-desig').value.trim(),mobile:$('f-mob').value.trim(),joining_date:$('f-join').value||null});
+  await D.del(`assignments/${k}`);
+  for(const c of document.querySelectorAll('.scheck:checked'))await D.set(`assignments/${k}/${c.value}`,true);
+
+  // Update user credentials if provided
+  if(newU && newP){
+    if(newU!==origU){
+      const exists=await D.get('users/'+newU);
+      if(exists){ toast('That username is already taken! Employee info saved without username change.','err'); }
+      else {
+        let uData={username:newU,password:newP,role:'employee',employee_key:k,full_name:newName,status:'active',created_at:now()};
+        if(origU){
+          const oldData=await D.get('users/'+origU);
+          if(oldData) uData={...oldData,username:newU,password:newP,full_name:newName};
+          await D.del('users/'+origU);
+        }
+        await D.set('users/'+newU,uData);
+      }
+    }else if(origU){
+      await D.upd('users/'+origU,{password:newP,full_name:newName});
+    }
+  }
+
+  closeModal();toast('Updated successfully!');nav('employees');
+}
+async function deactivateEmp(k,name){if(!confirm(`Deactivate ${name}?`))return;await D.upd(`employees/${k}`,{status:'inactive'});const users=await D.get('users')||{};for(const[un,u] of Object.entries(users))if(u.employee_key===k){await D.upd(`users/${un}`,{status:'inactive'});break;}toast('Deactivated');nav('employees');}
+
+// ─── INIT ──────────────────────────────────────────
+(function(){
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(FB);
+    db=firebase.database();
+
+    // Monitor connection in background (non-blocking banner)
+    db.ref('.info/connected').on('value',snap=>{
+      const isOnline = snap.val() === true;
+      const b=$('conn-banner');
+      if(b){ b.style.display = isOnline ? 'none' : 'block'; }
+    });
+
+    // Check saved session immediately without waiting
+    const s=SafeStorage.get('ca_s');
+    if(s){
+      try{
+        me=JSON.parse(s);
+        startApp();
+        return;
+      }catch{
+        SafeStorage.del('ca_s');
+      }
+    }
+
+    // Default: Show login screen instantly
+    showLogin();
+  }catch(e){
+    console.error('Firebase init error:', e);
+    showLogin();
+  }
+})();
+</script>
+</body>
+</html>
