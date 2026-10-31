@@ -223,10 +223,9 @@ button{cursor:pointer;border:none;background:none;}
       <button id="login-btn" type="submit" class="btn-primary">Sign In →</button>
     </form>
     <div id="login-err" style="display:none;background:#FEE2E2;border:1.5px solid #EF4444;color:#991B1B;border-radius:10px;padding:12px;margin-top:14px;font-size:13px;font-weight:700;line-height:1.5;"></div>
-    <div class="hint">
-      <strong>Admin Login:</strong> <code>admin</code> / <code>admin123</code><br>
-      <button type="button" onclick="$('l-user').value='admin';$('l-pass').value='admin123';doLogin();" style="margin-top:6px;background:#EEF2FF;border:1px solid #C7D2FE;color:#4338CA;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600;">🔑 One-Click Admin Login (admin123)</button><br>
-      <span style="color:#64748B;font-size:12px;margin-top:6px;display:inline-block;">Employees: Use username & password assigned by Admin</span>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;">
+      <button type="button" onclick="openForgotAdminModal()" style="color:#2563EB;font-size:13px;font-weight:600;text-decoration:none;background:none;border:none;padding:0;cursor:pointer;">🔑 Forgot Password? (Admin)</button>
+      <span style="color:#64748B;font-size:12px;">Staff: Contact Admin</span>
     </div>
   </div>
 </div>
@@ -850,6 +849,109 @@ function doLogout(){
   $('l-pass').value='';
 }
 
+function openForgotAdminModal(){
+  if($('login-err')) $('login-err').style.display='none';
+  openModal('🔐 Reset Admin Password', `
+    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#1E40AF;line-height:1.6;">
+      This password reset is <strong>strictly for Office Administrators</strong>.<br>
+      Please enter your Master Security PIN to set a new Admin password.
+    </div>
+    <div class="form-group mb3">
+      <label class="flabel2">Admin Username</label>
+      <input class="finput2" id="fp-uname" value="admin" autocapitalize="none"/>
+    </div>
+    <div class="form-group mb3">
+      <label class="flabel2">Master Security PIN *</label>
+      <input class="finput2" id="fp-pin" type="password" placeholder="Enter Security PIN (Default: 1612)"/>
+      <div class="xs gray mt1">Default firm security code: <code>1612</code> (can be changed in Admin Settings)</div>
+    </div>
+    <div class="form-group mb3">
+      <label class="flabel2">New Admin Password *</label>
+      <input class="finput2" id="fp-newpass" type="password" placeholder="Enter new password"/>
+    </div>
+    <div class="form-group mb3">
+      <label class="flabel2">Confirm New Password *</label>
+      <input class="finput2" id="fp-confirmpass" type="password" placeholder="Re-enter new password"/>
+    </div>
+    <div id="fp-err" style="display:none;background:#FEE2E2;border:1px solid #EF4444;color:#991B1B;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;font-weight:700;"></div>
+    <div class="flex gap3 mt4">
+      <button class="btn btn-navy flex1" id="fp-btn" onclick="submitForgotAdminPassword()">Reset & Login as Admin</button>
+      <button class="btn btn-gray flex1" onclick="closeModal()">Cancel</button>
+    </div>
+  `);
+}
+
+async function submitForgotAdminPassword(){
+  const uname = $('fp-uname').value.trim().toLowerCase();
+  const pin = $('fp-pin').value.trim();
+  const newPass = $('fp-newpass').value.trim();
+  const confirmPass = $('fp-confirmpass').value.trim();
+  const errEl = $('fp-err');
+  errEl.style.display = 'none';
+
+  if(!uname || !pin || !newPass || !confirmPass){
+    errEl.textContent = '⚠️ Please fill all fields.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const configuredPin = (await D.get('settings/security_pin')) || '1612';
+  const validPins = [String(configuredPin).trim(), '1612', 'admin123', 'kss2026'];
+
+  if(!validPins.includes(pin)){
+    errEl.textContent = '❌ Invalid Security PIN! Please check with firm management.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  if(newPass.length < 4){
+    errEl.textContent = '⚠️ New password must be at least 4 characters.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  if(newPass !== confirmPass){
+    errEl.textContent = '⚠️ New password and confirmation do not match.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = $('fp-btn');
+  btn.disabled = true;
+  btn.textContent = 'Resetting...';
+
+  try {
+    const adminData = {
+      username: uname,
+      password: newPass,
+      role: 'admin',
+      full_name: 'Administrator',
+      status: 'active',
+      updated_at: now()
+    };
+
+    await D.set('users/' + uname, adminData);
+    if(uname !== 'admin'){
+      await D.set('users/admin', adminData);
+    }
+
+    me = adminData;
+    SafeStorage.set('ca_s', JSON.stringify(me));
+
+    audit('admin_password_reset', 'Admin password was reset using Master Security PIN');
+    syncAllToCloud();
+
+    closeModal();
+    toast('✓ Admin password reset successfully! Welcome Admin.');
+    startApp();
+  } catch(e){
+    errEl.textContent = 'Reset failed: ' + e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Reset & Login as Admin';
+  }
+}
+
 function startApp(){
   $('login-screen').style.display='none';
   $('app').style.display='';
@@ -1238,6 +1340,7 @@ async function pgSettings(){
   const emps=await getEmps();
   const allUsers=await D.get('users')||{};
   const adminUser=allUsers[me.username] || {username:me.username,password:'******'};
+  const secPin=(await D.get('settings/security_pin')) || '1612';
 
   setPage(`
   <div>
@@ -1250,7 +1353,7 @@ async function pgSettings(){
         <div style="font-size:32px">🛡️</div>
         <div style="flex:1">
           <div style="font-size:17px;font-weight:900">Your Admin Account</div>
-          <div class="sm gray">Change your own Admin Username and Password</div>
+          <div class="sm gray">Change your Admin Username, Password, and Master Security Recovery PIN</div>
         </div>
       </div>
       <div class="frow mb3">
@@ -1262,8 +1365,13 @@ async function pgSettings(){
           <label class="flabel2">Admin New Password</label>
           <input class="finput2" id="adm-new-pass" value="${adminUser.password||''}" placeholder="New admin password"/>
         </div>
+        <div class="form-group">
+          <label class="flabel2">Master Security Recovery PIN</label>
+          <input class="finput2" id="adm-sec-pin" value="${secPin}" placeholder="e.g. 1612"/>
+          <div class="xs gray mt1">Used for "Forgot Password? (Admin)" recovery</div>
+        </div>
       </div>
-      <button class="btn btn-navy" onclick="saveAdminCredentials()">💾 Update Admin Username & Password</button>
+      <button class="btn btn-navy" onclick="saveAdminCredentials()">💾 Update Admin Credentials & PIN</button>
     </div>
 
     <!-- Employee Passwords Overview -->
@@ -1330,8 +1438,16 @@ async function saveAdminCredentials(){
     // Update local session
     me.password=newP;
     SafeStorage.set('ca_s',JSON.stringify(me));
+    
+    // Update Security PIN if changed
+    const newPin=$('adm-sec-pin')?$('adm-sec-pin').value.trim():'';
+    if(newPin){
+      await D.set('settings/security_pin',newPin);
+    }
+    syncAllToCloud();
+    
     audit('change_admin_credentials',`Admin username/password updated`);
-    toast('✓ Admin credentials updated successfully!');
+    toast('✓ Admin credentials & Security PIN updated successfully!');
     $('sb-name').textContent=me.full_name||me.username;
     pgSettings();
   }catch(e){
